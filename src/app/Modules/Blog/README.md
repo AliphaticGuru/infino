@@ -1,8 +1,8 @@
-# Catalog Module
+# Blog Module
 
 ## Purpose
 
-Describe the purpose of the Catalog module.
+Describe the purpose of the Blog module.
 
 ## Responsibilities
 

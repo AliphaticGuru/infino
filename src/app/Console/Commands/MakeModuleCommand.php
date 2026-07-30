@@ -33,6 +33,7 @@ class MakeModuleCommand extends Command
             'Models',
             'Policies',
             'Providers',
+            'routes',
             'Services',
             'Tests',
         ];
@@ -108,16 +109,20 @@ class MakeModuleCommand extends Command
 
     protected function createRoutes(string $basePath, string $module): void
     {
-        $content = str_replace(
-            '{{ module }}',
-            $module,
-            $this->getStub('routes')
-        );
+        File::ensureDirectoryExists("{$basePath}/routes");
 
-        File::put(
-            "{$basePath}/routes.php",
-            $content
-        );
+        foreach (['web', 'api'] as $route) {
+            $content = str_replace(
+                '{{ module }}',
+                $module,
+                $this->getStub($route)
+            );
+
+            File::put(
+                "{$basePath}/routes/{$route}.php",
+                $content
+            );
+        }
     }
 
     protected function createServiceProvider(string $basePath, string $module): void
