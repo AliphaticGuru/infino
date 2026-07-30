@@ -6,6 +6,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 
 #[Signature('app:make-module {name}')]
@@ -13,41 +14,51 @@ use Illuminate\Support\Str;
 class MakeModuleCommand extends Command
 {
     protected array $directories = [
-            '',
-            'Actions',
-            'Database',
-            'Database/Factories',
-            'Database/Migrations',
-            'Database/Seeders',
-            'Events',
-            'Filament',
-            'Filament/Pages',
-            'Filament/Resources',
-            'Filament/Widgets',
-            'Http',
-            'Http/Controllers',
-            'Http/Middleware',
-            'Http/Requests',
-            'Listeners',
-            'Livewire',
-            'Models',
-            'Policies',
-            'Providers',
-            'routes',
-            'Services',
-            'Tests',
-        ];
-    /**
+        '',
+        'Contracts',
+
+        'Database',
+        'Database/Factories',
+        'Database/Migrations',
+        'Database/Seeders',
+
+        'Http',
+        'Http/Controllers',
+        'Http/Middleware',
+        'Http/Requests',
+
+        'Models',
+        'Policies',
+        'Providers',
+        'Services',
+        'Support',
+
+        'Tests',
+
+        'routes',
+    ];
+/**
      * Execute the console command.
      */
+
+    public function __construct(
+        private readonly Filesystem $files,
+    ) {
+        parent::__construct();
+    }
+
     public function handle(): int
     {
-        $module = Str::studly($this->argument('name'));
+        $module = $this->normalizeName(
+            $this->argument('name')
+        );
 
-        $basePath = app_path("Modules/{$module}");
+        $basePath = $this->modulePath($module);
 
-        if (File::exists($basePath)) {
-            $this->error("Module [{$module}] already exists.");
+        if ($this->files->exists($basePath)) {
+            $this->components->error(
+                "Module [{$module}] already exists."
+            );
 
             return self::FAILURE;
         }
@@ -76,9 +87,9 @@ class MakeModuleCommand extends Command
         
         $this->createManifest($basePath, $module);
 
+        $this->displaySuccess($module);
         
-
-        $this->info("Module [{$module}] created successfully.");
+        // $this->info("Module [{$module}] created successfully.");
 
         return self::SUCCESS;
     }
@@ -91,9 +102,9 @@ class MakeModuleCommand extends Command
                 ? $basePath
                 : "{$basePath}/{$directory}";
 
-            File::ensureDirectoryExists($path);
+            $this->files->ensureDirectoryExists($path);
 
-            File::put(
+            $this->files->put(
                 "{$path}/.gitkeep",
                 ''
             );
@@ -108,7 +119,7 @@ class MakeModuleCommand extends Command
             $this->getStub('README')
         );
 
-        File::put(
+        $this->files->put(
             "{$basePath}/README.md",
             $content
         );
@@ -116,7 +127,7 @@ class MakeModuleCommand extends Command
 
     protected function createRoutes(string $basePath, string $module): void
     {
-        File::ensureDirectoryExists("{$basePath}/routes");
+        $this->files->ensureDirectoryExists("{$basePath}/routes");
 
         foreach (['web', 'api'] as $route) {
             $content = str_replace(
@@ -125,7 +136,7 @@ class MakeModuleCommand extends Command
                 $this->getStub($route)
             );
 
-            File::put(
+            $this->files->put(
                 "{$basePath}/routes/{$route}.php",
                 $content
             );
@@ -140,7 +151,7 @@ class MakeModuleCommand extends Command
             $this->getStub('ModuleServiceProvider')
         );
 
-        File::put(
+        $this->files->put(
             "{$basePath}/Providers/{$module}ServiceProvider.php",
             $content
         );
@@ -154,16 +165,33 @@ class MakeModuleCommand extends Command
             $this->getStub('module')
         );
 
-        File::put(
+        $this->files->put(
             "{$basePath}/module.json",
             $content
         );
     }
+
+    protected function normalizeName(string $name): string
+    {
+        return Str::studly(trim($name));
+    }
     
     protected function getStub(string $stub): string
     {
-        return File::get(
+        return $this->files->get(
             base_path("stubs/module/{$stub}.stub")
+        );
+    }
+
+    protected function modulePath(string $module): string
+    {
+        return app_path("Modules/{$module}");
+    }
+
+    protected function displaySuccess(string $module): void
+    {
+        $this->components->info(
+            "Module [{$module}] created successfully."
         );
     }
 }

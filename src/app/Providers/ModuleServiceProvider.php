@@ -2,15 +2,23 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\File;
+// use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
-use App\Support\Modules\ModuleRepository;
+// use App\Foundation\Modules\ModuleManifest;
+use App\Foundation\Modules\ModuleLoader;
+use App\Foundation\Modules\ModuleRepository;
 
 class ModuleServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->registerModules();
+        $this->app->singleton(ModuleRepository::class);
+
+        $this->app->singleton(ModuleLoader::class);
+
+        $this->app
+            ->make(ModuleLoader::class)
+            ->load();
     }
 
     public function boot(): void
@@ -18,24 +26,31 @@ class ModuleServiceProvider extends ServiceProvider
         //
     }
 
-    protected function registerModules(): void
-    {
-        // $repository = new ModuleRepository();
-        $repository = app(ModuleRepository::class);
+    // protected function registerModules(): void
+    // {
+        // $repository = app(ModuleRepository::class);
 
-        foreach ($repository->all() as $module) 
-        {
+        // foreach ($repository->all() as $module) 
+        // {
 
-            if (! ($module['enabled'] ?? true)) {
-                continue;
-            }
+        //     if (! $module->isEnabled()) {
+        //         continue;
+        //     }
 
-            foreach ($module['providers'] as $provider) {
+        //     foreach ($module->providers() as $provider) {
 
-                if (class_exists($provider)) {
-                    $this->app->register($provider);
-                }
-            }
-        }
-    }
+        //         if (class_exists($provider)) {
+        //             $this->app->register($provider);
+        //         }
+        //     }
+        // }
+        // $repository = app(ModuleRepository::class);
+
+        // $repository
+        //     ->all()
+        //     ->filter->isEnabled()
+        //     ->each(
+        //         fn (ModuleManifest $module) => $module->registerProviders($this->app)
+        // );
+    // }
 }
