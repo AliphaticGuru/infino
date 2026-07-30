@@ -113,15 +113,10 @@ class MakeModuleCommand extends Command
 
     protected function createReadme(string $basePath, string $module): void
     {
-        $content = str_replace(
-            '{{ module }}',
+        $this->writeStub(
+            'README',
             $module,
-            $this->getStub('README')
-        );
-
-        $this->files->put(
-            "{$basePath}/README.md",
-            $content
+            "{$basePath}/README.md"
         );
     }
 
@@ -129,45 +124,34 @@ class MakeModuleCommand extends Command
     {
         $this->files->ensureDirectoryExists("{$basePath}/routes");
 
-        foreach (['web', 'api'] as $route) {
-            $content = str_replace(
-                '{{ module }}',
-                $module,
-                $this->getStub($route)
-            );
+        $this->writeStub(
+            'web',
+            $module,
+            "{$basePath}/routes/web.php"
+        );
 
-            $this->files->put(
-                "{$basePath}/routes/{$route}.php",
-                $content
-            );
-        }
+        $this->writeStub(
+            'api',
+            $module,
+            "{$basePath}/routes/api.php"
+        );
     }
 
     protected function createServiceProvider(string $basePath, string $module): void
     {
-        $content = str_replace(
-            '{{ module }}',
+        $this->writeStub(
+            'ModuleServiceProvider',
             $module,
-            $this->getStub('ModuleServiceProvider')
-        );
-
-        $this->files->put(
-            "{$basePath}/Providers/{$module}ServiceProvider.php",
-            $content
+            "{$basePath}/Providers/{$module}ServiceProvider.php"
         );
     }
 
     protected function createManifest(string $basePath, string $module): void
     {
-        $content = str_replace(
-            '{{ module }}',
+        $this->writeStub(
+            'module',
             $module,
-            $this->getStub('module')
-        );
-
-        $this->files->put(
-            "{$basePath}/module.json",
-            $content
+            "{$basePath}/module.json"
         );
     }
 
@@ -180,6 +164,23 @@ class MakeModuleCommand extends Command
     {
         return $this->files->get(
             base_path("stubs/module/{$stub}.stub")
+        );
+    }
+
+    protected function writeStub(
+    string $stub,
+    string $module,
+    string $destination
+    ): void {
+        $content = str_replace(
+            '{{ module }}',
+            $module,
+            $this->getStub($stub)
+        );
+
+        $this->files->put(
+            $destination,
+            $content
         );
     }
 
