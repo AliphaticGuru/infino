@@ -8,11 +8,8 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Route::middleware(['web'])
-//     ->group(function () {
-//         //
-//     });
-
-Route::get('/catalog-test', function () {
-    return 'Catalog module is working!';
-});
+Route::middleware(['web'])
+    ->group(function () {
+        //
+    });
+    

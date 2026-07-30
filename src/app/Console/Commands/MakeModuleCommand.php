@@ -67,9 +67,16 @@ class MakeModuleCommand extends Command
         //     "# {$module} Module\n\nModule documentation.\n"
         // );
         $this->createDirectories($basePath);
+
         $this->createRoutes($basePath, $module);
+        
         $this->createReadme($basePath, $module);
+        
         $this->createServiceProvider($basePath, $module);
+        
+        $this->createManifest($basePath, $module);
+
+        
 
         $this->info("Module [{$module}] created successfully.");
 
@@ -135,6 +142,20 @@ class MakeModuleCommand extends Command
 
         File::put(
             "{$basePath}/Providers/{$module}ServiceProvider.php",
+            $content
+        );
+    }
+
+    protected function createManifest(string $basePath, string $module): void
+    {
+        $content = str_replace(
+            '{{ module }}',
+            $module,
+            $this->getStub('module')
+        );
+
+        File::put(
+            "{$basePath}/module.json",
             $content
         );
     }

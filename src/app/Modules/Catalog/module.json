@@ -1,0 +1,10 @@
+{
+    "name": "Catalog",
+    "description": "",
+    "version": "1.0.0",
+    "enabled": true,
+    "providers": [
+        "App\\Modules\\Catalog\\Providers\\CatalogServiceProvider"
+    ],
+    "dependencies": []
+}
