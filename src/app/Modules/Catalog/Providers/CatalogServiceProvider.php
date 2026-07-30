@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Modules\{{ module }}\Providers;
+namespace App\Modules\Catalog\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
-class {{ module }}ServiceProvider extends ServiceProvider
+class CatalogServiceProvider extends ServiceProvider
 {
     public function register(): void
     {

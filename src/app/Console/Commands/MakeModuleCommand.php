@@ -129,7 +129,7 @@ class MakeModuleCommand extends Command
         );
 
         File::put(
-            "{$basePath}/Providers/ModuleServiceProvider.php",
+            "{$basePath}/Providers/{$module}ServiceProvider.php",
             $content
         );
     }
