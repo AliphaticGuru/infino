@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
+use App\Support\Modules\ModuleRepository;
 
 class ModuleServiceProvider extends ServiceProvider
 {
@@ -19,22 +20,21 @@ class ModuleServiceProvider extends ServiceProvider
 
     protected function registerModules(): void
     {
-        $modulesPath = app_path('Modules');
+        // $repository = new ModuleRepository();
+        $repository = app(ModuleRepository::class);
 
-        if (! File::exists($modulesPath)) {
-            return;
-        }
+        foreach ($repository->all() as $module) 
+        {
 
-        $modules = File::directories($modulesPath);
+            if (! ($module['enabled'] ?? true)) {
+                continue;
+            }
 
-        foreach ($modules as $module) {
-            $moduleName = basename($module);
-            
-            $provider = "App\\Modules\\{$moduleName}\\Providers\\{$moduleName}ServiceProvider";
+            foreach ($module['providers'] as $provider) {
 
-            if (class_exists($provider)) 
-            {
-                $this->app->register($provider);
+                if (class_exists($provider)) {
+                    $this->app->register($provider);
+                }
             }
         }
     }

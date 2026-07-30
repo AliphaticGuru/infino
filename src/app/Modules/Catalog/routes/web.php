@@ -12,4 +12,7 @@ Route::middleware(['web'])
     ->group(function () {
         //
     });
-    
+
+Route::get('/catalog-test', function () {
+    return 'Catalog module is working!';
+});
