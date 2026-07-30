@@ -1,0 +1,17 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| {{ module }} Routes
+|--------------------------------------------------------------------------
+|
+| Register the routes for the {{ module }} module here.
+|
+*/
+
+Route::middleware([])
+    ->group(function () {
+        //
+    });
