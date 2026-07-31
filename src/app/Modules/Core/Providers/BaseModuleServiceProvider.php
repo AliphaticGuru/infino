@@ -5,28 +5,34 @@ declare(strict_types=1);
 namespace App\Modules\Core\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use ReflectionClass;
 
 abstract class BaseModuleServiceProvider extends ServiceProvider
 {
-    public function register(): void
+    final public function register(): void
     {
         $this->registerModule();
     }
 
-    public function boot(): void
+    final public function boot(): void
     {
         $this->bootModule();
-        
-        $this->loadModuleRoutes();
 
+        $this->loadModuleRoutes();
         $this->loadModuleMigrations();
     }
 
+    /**
+     * Override this in child modules if needed.
+     */
     protected function registerModule(): void
     {
         //
     }
 
+    /**
+     * Override this in child modules if needed.
+     */
     protected function bootModule(): void
     {
         //
@@ -34,13 +40,9 @@ abstract class BaseModuleServiceProvider extends ServiceProvider
 
     protected function loadModuleRoutes(): void
     {
-        $basePath = dirname((new \ReflectionClass($this))->getFileName());
-
-        $routesPath = dirname($basePath) . '/routes';
-
         foreach (['web', 'api'] as $route) {
 
-            $file = "{$routesPath}/{$route}.php";
+            $file = $this->modulePath("routes/{$route}.php");
 
             if (is_file($file)) {
                 $this->loadRoutesFrom($file);
@@ -50,14 +52,23 @@ abstract class BaseModuleServiceProvider extends ServiceProvider
 
     protected function loadModuleMigrations(): void
     {
-        $path = dirname(
-            dirname(
-                (new \ReflectionClass($this))->getFileName()
-            )
-        ) . '/Database/Migrations';
+        $path = $this->modulePath('Database/Migrations');
 
         if (is_dir($path)) {
             $this->loadMigrationsFrom($path);
         }
+    }
+
+    protected function modulePath(string $path = ''): string
+    {
+        $module = dirname(
+            (new ReflectionClass($this))->getFileName(),
+        );
+
+        $module = dirname($module);
+
+        return $path === ''
+            ? $module
+            : "{$module}/{$path}";
     }
 }
