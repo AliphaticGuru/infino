@@ -1,10 +1,10 @@
 {
-    "name": "Test",
+    "name": "Core",
     "description": "",
     "version": "1.0.0",
     "enabled": true,
     "providers": [
-        "App\\Modules\\Test\\Providers\\TestServiceProvider"
+        "App\\Modules\\Core\\Providers\\CoreServiceProvider"
     ],
     "dependencies": []
 }

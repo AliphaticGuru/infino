@@ -104,10 +104,7 @@ class MakeModuleCommand extends Command
 
             $this->files->ensureDirectoryExists($path);
 
-            $this->files->put(
-                "{$path}/.gitkeep",
-                ''
-            );
+            $this->createGitKeep($path);
         }
     }
 
@@ -153,6 +150,16 @@ class MakeModuleCommand extends Command
             $module,
             "{$basePath}/module.json"
         );
+    }
+
+    protected function createGitKeep(string $path): void
+    {
+        if (! $this->files->exists("{$path}/.gitkeep")) {
+            $this->files->put(
+                "{$path}/.gitkeep",
+                ''
+            );
+        }
     }
 
     protected function normalizeName(string $name): string

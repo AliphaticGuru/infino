@@ -1,36 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Modules\{{ module }}\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Modules\Core\Providers\BaseModuleServiceProvider;
 
-class {{ module }}ServiceProvider extends ServiceProvider
+class {{ module }}ServiceProvider extends BaseModuleServiceProvider
 {
-    public function register(): void
-    {
-        //
-    }
-
-    public function boot(): void
-    {
-        $this->loadModuleRoutes();
-
-        $this->loadMigrationsFrom(
-            dirname(__DIR__) . '/Database/Migrations'
-        );
-    }
-
-    protected function loadModuleRoutes(): void
-    {
-        $basePath = dirname(__DIR__);
-
-        foreach (['web', 'api'] as $route) {
-
-            $file = "{$basePath}/routes/{$route}.php";
-
-            if (file_exists($file)) {
-                $this->loadRoutesFrom($file);
-            }
-        }
-    }
+    
 }
