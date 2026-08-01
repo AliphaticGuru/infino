@@ -6,7 +6,7 @@ namespace App\Modules\Core\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
-class CoreServiceProvider extends ServiceProvider
+final class CoreServiceProvider extends ServiceProvider
 {
     public function register(): void
     {

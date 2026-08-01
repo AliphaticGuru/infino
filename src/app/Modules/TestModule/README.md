@@ -1,8 +1,8 @@
-# Test Module
+# TestModule Module
 
 ## Purpose
 
-Describe the purpose of the Test module.
+Describe the purpose of the TestModule module.
 
 ## Responsibilities
 

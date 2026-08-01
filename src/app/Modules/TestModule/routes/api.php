@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Test Web Routes
+| TestModule API Routes
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['web'])
+Route::middleware(['api'])
     ->group(function () {
         //
     });

@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
+// use Illuminate\Support\Facades\File;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 
@@ -13,30 +13,7 @@ use Illuminate\Support\Str;
 #[Description('Create a new application module')]
 class MakeModuleCommand extends Command
 {
-    protected array $directories = [
-        '',
-        'Contracts',
-
-        'Database',
-        'Database/Factories',
-        'Database/Migrations',
-        'Database/Seeders',
-
-        'Http',
-        'Http/Controllers',
-        'Http/Middleware',
-        'Http/Requests',
-
-        'Models',
-        'Policies',
-        'Providers',
-        'Services',
-        'Support',
-
-        'Tests',
-
-        'routes',
-    ];
+    protected array $directories;
 /**
      * Execute the console command.
      */
@@ -45,6 +22,8 @@ class MakeModuleCommand extends Command
         private readonly Filesystem $files,
     ) {
         parent::__construct();
+
+        $this->directories = config('modules.directories', []);
     }
 
     public function handle(): int
@@ -179,6 +158,10 @@ class MakeModuleCommand extends Command
     string $module,
     string $destination
     ): void {
+        $this->files->ensureDirectoryExists(
+            dirname($destination)
+        );
+        
         $content = str_replace(
             '{{ module }}',
             $module,
@@ -193,7 +176,10 @@ class MakeModuleCommand extends Command
 
     protected function modulePath(string $module): string
     {
-        return app_path("Modules/{$module}");
+        return rtrim(
+            config('modules.path', app_path('Modules')),
+            DIRECTORY_SEPARATOR
+        ).DIRECTORY_SEPARATOR.$module;
     }
 
     protected function displaySuccess(string $module): void
