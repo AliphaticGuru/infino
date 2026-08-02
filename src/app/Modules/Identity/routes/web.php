@@ -6,11 +6,11 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| TestModule API Routes
+| Identity Web Routes
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['api'])
+Route::middleware(['web'])
     ->group(function () {
         //
     });

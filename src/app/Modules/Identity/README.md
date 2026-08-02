@@ -1,8 +1,8 @@
-# TestModule Module
+# Identity Module
 
 ## Purpose
 
-Describe the purpose of the TestModule module.
+Describe the purpose of the Identity module.
 
 ## Responsibilities
 
