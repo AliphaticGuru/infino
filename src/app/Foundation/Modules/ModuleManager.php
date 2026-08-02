@@ -4,7 +4,7 @@ namespace App\Foundation\Modules;
 
 use Illuminate\Contracts\Foundation\Application;
 
-final readonly class ModuleLoader
+final readonly class ModuleManager
 {
     public function __construct(
         private Application $app,

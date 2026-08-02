@@ -25,6 +25,7 @@ return [
         'Actions',
 
         'Contracts',
+        'Data',
 
         'Database',
         'Database/Factories',

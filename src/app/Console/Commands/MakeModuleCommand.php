@@ -7,6 +7,8 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 // use Illuminate\Support\Facades\File;
 use Illuminate\Filesystem\Filesystem;
+use App\Foundation\Modules\ModuleRepository;
+use App\Foundation\Modules\ModuleManifest;
 use Illuminate\Support\Str;
 
 #[Signature('app:make-module {name}')]
@@ -20,6 +22,7 @@ class MakeModuleCommand extends Command
 
     public function __construct(
         private readonly Filesystem $files,
+        private readonly ModuleRepository $modules,
     ) {
         parent::__construct();
 
@@ -65,6 +68,16 @@ class MakeModuleCommand extends Command
         $this->createServiceProvider($basePath, $module);
         
         $this->createManifest($basePath, $module);
+
+        if (! $this->verifyModule($module)) {
+
+            $this->components->error(
+                "Module [{$module}] failed discovery."
+            );
+
+            return self::FAILURE;
+        }
+
 
         $this->displaySuccess($module);
         
@@ -174,6 +187,17 @@ class MakeModuleCommand extends Command
         );
     }
 
+    protected function verifyModule(string $module): bool
+    {
+        return $this->modules
+            ->all()
+            ->contains(
+                fn (ModuleManifest $manifest) =>
+                    $manifest->name === $module
+                    && $manifest->providersExist()
+            );
+    }
+    
     protected function modulePath(string $module): string
     {
         return rtrim(
