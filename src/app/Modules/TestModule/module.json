@@ -1,0 +1,10 @@
+{
+    "name": "TestModule",
+    "description": "",
+    "version": "1.0.0",
+    "enabled": true,
+    "providers": [
+        "App\\Modules\\TestModule\\Providers\\TestModuleServiceProvider"
+    ],
+    "dependencies": []
+}

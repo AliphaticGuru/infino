@@ -6,7 +6,6 @@ namespace App\Modules\{{ module }}\Providers;
 
 use App\Modules\Core\Providers\BaseModuleServiceProvider;
 
-class {{ module }}ServiceProvider extends BaseModuleServiceProvider
-{
-    
+final class {{ module }}ServiceProvider extends BaseModuleServiceProvider
+{   
 }

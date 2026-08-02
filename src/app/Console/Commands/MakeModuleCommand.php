@@ -5,46 +5,28 @@ namespace App\Console\Commands;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\File;
+// use Illuminate\Support\Facades\File;
 use Illuminate\Filesystem\Filesystem;
+use App\Foundation\Modules\ModuleRepository;
+use App\Foundation\Modules\ModuleManifest;
 use Illuminate\Support\Str;
 
 #[Signature('app:make-module {name}')]
 #[Description('Create a new application module')]
 class MakeModuleCommand extends Command
 {
-    protected array $directories = [
-        '',
-        'Contracts',
-
-        'Database',
-        'Database/Factories',
-        'Database/Migrations',
-        'Database/Seeders',
-
-        'Http',
-        'Http/Controllers',
-        'Http/Middleware',
-        'Http/Requests',
-
-        'Models',
-        'Policies',
-        'Providers',
-        'Services',
-        'Support',
-
-        'Tests',
-
-        'routes',
-    ];
+    protected array $directories;
 /**
      * Execute the console command.
      */
 
     public function __construct(
         private readonly Filesystem $files,
+        private readonly ModuleRepository $modules,
     ) {
         parent::__construct();
+
+        $this->directories = config('modules.directories', []);
     }
 
     public function handle(): int
@@ -86,6 +68,16 @@ class MakeModuleCommand extends Command
         $this->createServiceProvider($basePath, $module);
         
         $this->createManifest($basePath, $module);
+
+        if (! $this->verifyModule($module)) {
+
+            $this->components->error(
+                "Module [{$module}] failed discovery."
+            );
+
+            return self::FAILURE;
+        }
+
 
         $this->displaySuccess($module);
         
@@ -179,6 +171,10 @@ class MakeModuleCommand extends Command
     string $module,
     string $destination
     ): void {
+        $this->files->ensureDirectoryExists(
+            dirname($destination)
+        );
+        
         $content = str_replace(
             '{{ module }}',
             $module,
@@ -191,9 +187,23 @@ class MakeModuleCommand extends Command
         );
     }
 
+    protected function verifyModule(string $module): bool
+    {
+        return $this->modules
+            ->all()
+            ->contains(
+                fn (ModuleManifest $manifest) =>
+                    $manifest->name === $module
+                    && $manifest->providersExist()
+            );
+    }
+    
     protected function modulePath(string $module): string
     {
-        return app_path("Modules/{$module}");
+        return rtrim(
+            config('modules.path', app_path('Modules')),
+            DIRECTORY_SEPARATOR
+        ).DIRECTORY_SEPARATOR.$module;
     }
 
     protected function displaySuccess(string $module): void

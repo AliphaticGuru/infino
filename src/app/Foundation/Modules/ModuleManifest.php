@@ -48,8 +48,21 @@ final readonly class ModuleManifest
         return $this->dependencies !== [];
     }
 
+    public function hasProvider(string $provider): bool
+    {
+        return $this->providers !== [];
+    }
+
     public function dependsOn(string $module): bool
     {
         return in_array($module, $this->dependencies, true);
+    }
+
+    public function providersExist(): bool
+    {
+        return collect($this->providers)
+            ->every(
+                fn (string $provider) => class_exists($provider)
+            );
     }
 }

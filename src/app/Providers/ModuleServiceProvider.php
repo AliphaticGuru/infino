@@ -1,29 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
 // use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
 // use App\Foundation\Modules\ModuleManifest;
-use App\Foundation\Modules\ModuleLoader;
+use App\Foundation\Modules\ModuleManager;
 use App\Foundation\Modules\ModuleRepository;
 
-class ModuleServiceProvider extends ServiceProvider
+final class ModuleServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->app->singleton(ModuleRepository::class);
 
-        $this->app->singleton(ModuleLoader::class);
+        $this->app->singleton(ModuleManager::class);
 
-        $this->app
-            ->make(ModuleLoader::class)
-            ->load();
+        // $this->app
+        //     ->make(ModuleManager::class)
+        //     ->load();
     }
 
-    public function boot(): void
+    public function boot(ModuleManager $modules): void
     {
-        //
+        $modules->load();
     }
 
     // protected function registerModules(): void
