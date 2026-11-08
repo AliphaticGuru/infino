@@ -1,7 +1,7 @@
 <?php
 
 use App\Livewire\Settings\Profile;
-use App\Models\User;
+use App\Modules\Identity\Models\User;
 use Livewire\Livewire;
 
 test('profile page is displayed', function () {
@@ -58,7 +58,8 @@ test('user can delete their account', function () {
         ->assertRedirect('/');
 
     expect($user->fresh())->toBeNull();
-    expect(auth()->check())->toBeFalse();
+    $this->assertGuest();
+    // expect(auth()->check())->toBeFalse();
 });
 
 test('correct password must be provided to delete account', function () {

@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use App\Modules\Identity\Models\User;
 use Laravel\Fortify\Features;
 
 test('login screen can be rendered', function () {

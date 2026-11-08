@@ -1,10 +1,12 @@
 {
     "name": "Catalog",
-    "description": "",
+    "description": "Product catalog module.",
     "version": "1.0.0",
     "enabled": true,
     "providers": [
         "App\\Modules\\Catalog\\Providers\\CatalogServiceProvider"
     ],
-    "dependencies": []
+    "dependencies": [
+        "Core"
+    ]
 }

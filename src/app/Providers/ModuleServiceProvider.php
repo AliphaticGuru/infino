@@ -28,6 +28,8 @@ final class ModuleServiceProvider extends ServiceProvider
         $modules->load();
     }
 
+    
+
     // protected function registerModules(): void
     // {
         // $repository = app(ModuleRepository::class);
