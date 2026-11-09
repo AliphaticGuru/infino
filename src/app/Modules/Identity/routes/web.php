@@ -16,5 +16,5 @@ Route::middleware(['web'])
         
         Route::post('/login', [
             LoginController::class, 'store'
-            ])->name('login');
+            ])->name('login.store');
     });

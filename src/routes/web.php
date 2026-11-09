@@ -10,6 +10,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Route::view('post/create', 'pages.post.⚡create')->name('post.create');
 
-Route::livewire('/post/create', 'pages::post.create')->name('post.create');
+Route::livewire('/post/create', \App\Livewire\Pages\Post\Create::class)->name('post.create');
 
 require __DIR__.'/settings.php';

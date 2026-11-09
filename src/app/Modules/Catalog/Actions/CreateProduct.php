@@ -16,11 +16,25 @@ final class CreateProduct implements CreatesProducts
 
             'name' => $data->name,
 
-            'slug' => Str::slug($data->name),
+            'slug' => $this->uniqueSlug($data->name),
 
             'description' => $data->description,
 
             'is_active' => true,
         ]);
+    }
+
+    private function uniqueSlug(string $name): string
+    {
+        $baseSlug = Str::slug($name);
+        $slug = $baseSlug;
+        $suffix = 1;
+
+        while (Product::where('slug', $slug)->exists()) {
+            $suffix++;
+            $slug = "{$baseSlug}-{$suffix}";
+        }
+
+        return $slug;
     }
 }
