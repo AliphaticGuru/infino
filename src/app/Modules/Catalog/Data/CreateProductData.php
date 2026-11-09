@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 declare(strict_types=1);
 
@@ -10,7 +10,7 @@ final readonly class CreateProductData extends Data
 {
     public function __construct(
         public string $name,
-        public string $description,
+        public ?string $description = null,
     ) {
     }
 }

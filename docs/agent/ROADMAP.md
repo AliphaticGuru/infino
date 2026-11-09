@@ -49,17 +49,17 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-**Status:** In progress
+**Status:** In progress — product and category foundations complete
 
 Suggested sequence:
-1. Verify Catalog module registration.
-2. Verify and execute product migration.
-3. Verify Product model and factory.
-4. Define product creation validation.
-5. Add product creation tests.
+1. ~~Verify Catalog module registration.~~ Complete.
+2. ~~Verify and execute product migration.~~ Complete.
+3. ~~Verify Product model and factory.~~ Complete.
+4. ~~Define product creation validation.~~ Complete.
+5. ~~Add product creation tests.~~ Complete.
 6. Add product update and retrieval behavior.
 7. Define product publication/status behavior.
-8. Add categories and category relationships.
+8. ~~Add categories and category relationships.~~ Complete; product-category pivot and parent-child hierarchy verified.
 9. Specify brands, attributes and variants before implementation.
 10. Integrate the administrative workflow.
 

@@ -2,11 +2,11 @@
 
 **Last updated:** 2026-11-09  
 **Branch at last inspection:** `feature/catalog`  
-**Latest commit at last inspection:** `7cdb745` — `feat(Catalog/Agent): Scaffold catalog module && adopting agentic flow`
+**Latest commit at last inspection:** `fd5f126` — `feat(catalog): All test case fixed`
 
 ## Objective
 
-Continue from the completed Catalog foundation audit. The next concrete task is to restore Fortify two-factor challenge handling in the Identity login flow without disturbing existing user work.
+Continue Catalog MVP work by adding product retrieval and update behavior. Keep Identity, Inventory, Cart, Orders and Payments untouched.
 
 ## Read first
 
@@ -16,12 +16,13 @@ Continue from the completed Catalog foundation audit. The next concrete task is 
 4. `docs/agent/PROJECT_STATE.md`
 5. `docs/agent/ROADMAP.md`
 6. `docs/agent/DECISIONS.md`
-7. This handoff.
-8. `src/AGENTS.md` before Laravel application changes.
+7. `docs/agent/modules/CATALOG.md`
+8. This handoff.
+9. `src/AGENTS.md` before Laravel application changes.
 
 ## Important repository protection
 
-The working tree contains uncommitted tracked and untracked work, including Identity changes, a Livewire post-create page, and shared documentation.
+The working tree contains uncommitted Catalog and documentation work.
 
 Do not:
 - Run `git reset`, `git clean` or destructive checkout commands.
@@ -33,53 +34,67 @@ Run `git status --short` again before doing anything. The recorded state is hist
 
 ## Current verified context
 
-- Docker Desktop must be running. It was started during the last session.
+- Docker Desktop must be running.
 - PHP CLI in the application container: 8.5.7.
 - Laravel: 13.22.0.
 - Application command pattern: `docker compose run --rm --no-deps cli <command>`.
-- Compose configuration loads without warnings; `infino-db` reaches `healthy`.
+- Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog and TestModule.
-- Catalog product migration loading, contract binding, factory resolution, persistence and slug uniqueness are verified by focused tests.
-- Full suite: **34 passed, 3 failed (95 assertions)**.
+- Product foundation: verified.
+- Category foundation: verified, including hierarchy and product-category pivot.
+- Catalog migrations: `create_products_table` (batch 2); `create_categories_table` and `create_z_category_product_table` (batch 3).
+- Catalog focused suite: **26 passed, 86 assertions**.
+- Full suite: **57 passed, 3 failed (167 assertions)**.
 
-## Known failures
+## Known failures unrelated to Catalog
 
-1. `Tests\Feature\Auth\AuthenticationTest` — a user with two-factor enabled is redirected to `/dashboard` instead of `/two-factor-challenge`.
+1. `Tests\Feature\Auth\AuthenticationTest` — a two-factor user is redirected to `/dashboard` instead of `/two-factor-challenge`.
 2. `Tests\Feature\Auth\TwoFactorChallengeTest` — same two-factor challenge redirect failure.
 3. `Tests\Feature\PostCreatePageTest` — 500 because `layouts/app/sidebar.blade.php` reads `name` from a null authenticated user.
 
-Likely cause of failures 1 and 2: `Identity\Http\Controllers\Auth\LoginController` authenticates through the custom `AuthenticatesUsers` action and redirects directly to `/dashboard`, bypassing Fortify's two-factor pipeline. Inspect the route registration and the Fortify login response behavior before choosing the smallest fix.
+These were reported as resolved in the task context, but the current repository still fails them. Do not modify them as part of Catalog work unless explicitly authorized.
 
-Likely cause of failure 3: the post-create page uses an authenticated layout for guests. Decide whether the page requires authentication or should use a guest layout.
+## Implemented Catalog foundation
+
+- `Product` and `Category` models, factories, migrations and relationships.
+- `CreateProduct`, `CreateCategory` and `UpdateCategory` actions.
+- Contracts and data objects for product creation and category creation/update.
+- Collision-safe product and category slugs, including rename handling.
+- Self-referencing category hierarchy with `nullOnDelete`.
+- Many-to-many product-category relationship through `category_product`.
 
 ## Immediate task sequence
 
-### Task 1 — Fix two-factor authentication flow
-- Inspect the Identity login route, controller and action.
-- Compare with Fortify's default login pipeline and two-factor challenge behavior.
-- Prefer reusing Fortify's authentication pipeline over reimplementing it.
-- Preserve the existing contract/action structure where possible.
+### Task 1 — Specify product retrieval
+- Define the smallest useful Catalog read operations (for example find by ID and find by slug).
+- Follow the module convention: contract, action, data object only where justified.
+- Keep Category behavior unchanged unless a focused fix is required.
 
-### Task 2 — Run focused authentication tests
-- Run `AuthenticationTest` and `TwoFactorChallengeTest`.
-- Record actual results.
-- Do not modify unrelated tests to force a pass.
+### Task 2 — Implement product update
+- Define updateable product fields.
+- Revalidate inputs consistently with product creation.
+- Define slug behavior when the product name changes, including collisions.
+- Reuse `Catalog\Support\UniqueSlug` for collision handling.
 
-### Task 3 — Resolve the post-create page failure
-- Inspect the page route, Livewire component and layout usage.
-- Decide whether authentication is required or a guest layout is appropriate.
-- Add or adjust a focused test only as needed.
+### Task 3 — Add focused tests
+- Retrieval by identifier and slug.
+- Update persistence and validation.
+- Slug collision behavior after rename.
+- Missing-product behavior.
+- Product-category assignment behavior if update touches categories.
 
 ### Task 4 — Verify and update shared memory
-- Run the full suite and Pint.
+- Run focused Catalog tests, the full suite and Pint.
 - Update `PROJECT_STATE.md`, `WORK_LOG.md` and this handoff.
 - Update `DECISIONS.md` only when a decision is actually made.
 
 ## Completion criteria
 
-- Two-factor login behavior matches Fortify expectations.
-- The post-create page behavior is intentional and tested.
-- The full suite result is recorded with exact failures, if any.
+- Product retrieval and update are implemented within Catalog.
+- Validation and slug behavior are covered by tests.
+- Category tests remain green.
+- Catalog focused tests pass.
+- Full-suite results and unrelated failures are recorded accurately.
 - Pint passes.
 - The next handoff identifies one concrete task.
 
