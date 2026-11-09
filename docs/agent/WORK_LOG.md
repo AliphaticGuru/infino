@@ -2,6 +2,74 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-09 — Inventory stock foundation implemented
+
+### Objective
+Establish Inventory as an independent business module that owns stock quantities and stock adjustment logic while referencing Catalog products.
+
+### Work performed
+- Read the mandatory project documentation, Catalog specification and active handoff.
+- Inspected the Catalog Product and Category implementations and confirmed a clean starting Git state at `f29517b`.
+- Confirmed the starting baseline: 57 passed, 3 failed (167 assertions).
+- Consulted installed Laravel 13 documentation through Laravel Boost for transactions, `lockForUpdate`, unique validation, exists rules and integer constraints.
+- Scaffolded the Inventory module with `php artisan app:make-module Inventory`.
+- Declared dependencies on Core and Catalog in `module.json`.
+- Added the `inventories` migration with a product foreign key, location, quantity, timestamps and a unique `(product_id, location)` index.
+- Added the `Inventory` model with an integer quantity cast and a `product()` belongs-to relationship to Catalog.
+- Added `InventoryFactory` with a `forLocation()` state.
+- Added `CreateInventory` and `AdjustStock` actions with contracts and data objects.
+- Bound both contracts in `InventoryServiceProvider`.
+- Added focused tests for schema, module registration, factory creation, product relationship, initial stock, multiple locations, duplicates, validation, increases, decreases, zero floor, negative prevention, zero adjustments, per-location isolation and product deletion cascade.
+- Applied the migration to PostgreSQL and inspected the resulting table.
+- Ran Pint, the focused Inventory suite and the full test suite.
+
+### Files changed
+- `src/app/Modules/Inventory/module.json`
+- `src/app/Modules/Inventory/README.md`
+- `src/app/Modules/Inventory/Providers/InventoryServiceProvider.php`
+- `src/app/Modules/Inventory/Models/Inventory.php`
+- `src/app/Modules/Inventory/Database/Migrations/create_inventories_table.php`
+- `src/app/Modules/Inventory/Database/Factories/InventoryFactory.php`
+- `src/app/Modules/Inventory/Data/CreateInventoryData.php`
+- `src/app/Modules/Inventory/Data/AdjustStockData.php`
+- `src/app/Modules/Inventory/Contracts/CreatesInventory.php`
+- `src/app/Modules/Inventory/Contracts/AdjustsStock.php`
+- `src/app/Modules/Inventory/Actions/CreateInventory.php`
+- `src/app/Modules/Inventory/Actions/AdjustStock.php`
+- `src/app/Modules/Inventory/routes/web.php`
+- `src/app/Modules/Inventory/routes/api.php`
+- Module scaffold directories and `.gitkeep` files
+- `src/tests/Feature/Inventory/InventoryFoundationTest.php`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/ROADMAP.md`
+- `docs/agent/DECISIONS.md`
+
+### Tests and verification
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Inventory/InventoryFoundationTest.php`
+- `docker compose run --rm --no-deps cli php artisan test --compact`
+- `docker compose run --rm --no-deps cli vendor/bin/pint app/Modules/Inventory tests/Feature/Inventory --format agent`
+- `docker compose run --rm --no-deps cli vendor/bin/pint --dirty --format agent`
+- `docker compose run --rm --no-deps cli php artisan migrate --force`
+- `docker compose run --rm --no-deps cli php artisan migrate:status`
+- `docker compose run --rm --no-deps cli php artisan db:table inventories`
+
+### Results
+- Inventory focused suite: 16 passed, 46 assertions.
+- Full suite: 73 passed, 3 failed, 213 assertions.
+- Pint: passed (initial targeted run fixed formatting in four generated files).
+- `create_inventories_table`: Ran in batch 4.
+- PostgreSQL table verified with a cascading product foreign key and unique `(product_id, location)` index.
+
+### Outstanding issues
+- The three remaining full-suite failures are pre-existing and unrelated: two-factor authentication redirects (2) and the post-create page null-user error (1).
+- Inventory movements/audit history, reservations, low-stock thresholds, location management actions and reporting are not implemented.
+- Inventory currently references products directly; variant-level inventory is not defined.
+
+### Next action
+Define and implement stock movement history for auditability, or continue Catalog product retrieval and update behavior.
+
 ## 2026-11-09 — Catalog category foundation implemented
 
 ### Objective

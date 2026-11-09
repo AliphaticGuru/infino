@@ -1,12 +1,15 @@
 # Infino — Current Agent Handoff
 
-**Last updated:** 2026-11-09  
-**Branch at last inspection:** `feature/catalog`  
-**Latest commit at last inspection:** `fd5f126` — `feat(catalog): All test case fixed`
+**Last updated:** 2026-11-09
+**Branch at last inspection:** `feature/inventory`
+**Latest commit at last inspection:** `f29517b` — `feat(catalog): completed  catalog foundation(category/product)`
 
 ## Objective
 
-Continue Catalog MVP work by adding product retrieval and update behavior. Keep Identity, Inventory, Cart, Orders and Payments untouched.
+Continue commerce foundations after the Inventory stock foundation. The next
+concrete task is to add auditable stock movement history, or to continue Catalog
+product retrieval and update behavior if Catalog is prioritized. Keep Identity,
+Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -22,7 +25,7 @@ Continue Catalog MVP work by adding product retrieval and update behavior. Keep 
 
 ## Important repository protection
 
-The working tree contains uncommitted Catalog and documentation work.
+The working tree contains uncommitted Inventory and documentation work.
 
 Do not:
 - Run `git reset`, `git clean` or destructive checkout commands.
@@ -39,61 +42,67 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Laravel: 13.22.0.
 - Application command pattern: `docker compose run --rm --no-deps cli <command>`.
 - Compose configuration loads without warnings; `infino-db` is healthy.
-- Modules present: Core, Identity, Catalog and TestModule.
-- Product foundation: verified.
-- Category foundation: verified, including hierarchy and product-category pivot.
-- Catalog migrations: `create_products_table` (batch 2); `create_categories_table` and `create_z_category_product_table` (batch 3).
+- Modules present: Core, Identity, Catalog, Inventory and TestModule.
+- Product and category foundations: verified.
+- Inventory stock foundation: verified.
+- Migrations: products (batch 2); categories and category_product (batch 3);
+  inventories (batch 4).
 - Catalog focused suite: **26 passed, 86 assertions**.
-- Full suite: **57 passed, 3 failed (167 assertions)**.
+- Inventory focused suite: **16 passed, 46 assertions**.
+- Full suite: **73 passed, 3 failed (213 assertions)**.
 
-## Known failures unrelated to Catalog
+## Known failures unrelated to Inventory
 
 1. `Tests\Feature\Auth\AuthenticationTest` — a two-factor user is redirected to `/dashboard` instead of `/two-factor-challenge`.
 2. `Tests\Feature\Auth\TwoFactorChallengeTest` — same two-factor challenge redirect failure.
 3. `Tests\Feature\PostCreatePageTest` — 500 because `layouts/app/sidebar.blade.php` reads `name` from a null authenticated user.
 
-These were reported as resolved in the task context, but the current repository still fails them. Do not modify them as part of Catalog work unless explicitly authorized.
+These were reported as resolved in an earlier task context, but the current
+repository still fails them. Do not modify them unless explicitly authorized.
 
-## Implemented Catalog foundation
+## Implemented Inventory foundation
 
-- `Product` and `Category` models, factories, migrations and relationships.
-- `CreateProduct`, `CreateCategory` and `UpdateCategory` actions.
-- Contracts and data objects for product creation and category creation/update.
-- Collision-safe product and category slugs, including rename handling.
-- Self-referencing category hierarchy with `nullOnDelete`.
-- Many-to-many product-category relationship through `category_product`.
+- `Inventory` model and `inventories` table.
+- Stock record per product and location, unique on `(product_id, location)`.
+- Cascading foreign key to Catalog products.
+- `InventoryFactory` with `forLocation()` state.
+- `CreateInventory` and `AdjustStock` actions with contracts and data objects.
+- `InventoryServiceProvider` bindings.
+- Validation of product existence, location, non-negative initial quantity and
+  non-zero adjustments.
+- Atomic adjustments in a transaction with `lockForUpdate`, rejecting results
+  below zero.
 
 ## Immediate task sequence
 
-### Task 1 — Specify product retrieval
-- Define the smallest useful Catalog read operations (for example find by ID and find by slug).
-- Follow the module convention: contract, action, data object only where justified.
-- Keep Category behavior unchanged unless a focused fix is required.
+### Option A — Inventory movement history
 
-### Task 2 — Implement product update
-- Define updateable product fields.
-- Revalidate inputs consistently with product creation.
-- Define slug behavior when the product name changes, including collisions.
-- Reuse `Catalog\Support\UniqueSlug` for collision handling.
+- Define an append-only movement model and migration.
+- Record the previous/resulting quantity, delta and a reason or reference.
+- Have `AdjustStock` write a movement within the same transaction.
+- Add focused tests for movement creation, negative rejection not writing a
+  movement, and per-location isolation.
+- Keep reservations and reporting out of scope.
 
-### Task 3 — Add focused tests
-- Retrieval by identifier and slug.
-- Update persistence and validation.
-- Slug collision behavior after rename.
-- Missing-product behavior.
-- Product-category assignment behavior if update touches categories.
+### Option B — Catalog product retrieval and update
 
-### Task 4 — Verify and update shared memory
-- Run focused Catalog tests, the full suite and Pint.
+- Define the smallest useful Catalog read operations (find by ID and slug).
+- Define updateable product fields and slug behavior on rename.
+- Reuse `Catalog\Support\UniqueSlug`.
+- Add focused tests and keep category behavior unchanged.
+
+### Verification and shared memory
+
+- Run focused tests, the full suite and `vendor/bin/pint --dirty --format agent`.
 - Update `PROJECT_STATE.md`, `WORK_LOG.md` and this handoff.
 - Update `DECISIONS.md` only when a decision is actually made.
 
 ## Completion criteria
 
-- Product retrieval and update are implemented within Catalog.
-- Validation and slug behavior are covered by tests.
-- Category tests remain green.
-- Catalog focused tests pass.
+- The chosen task is implemented within its owning module.
+- Validation, negative-stock protection and relevant integration behavior are
+  covered by tests.
+- Catalog and Inventory focused tests remain green.
 - Full-suite results and unrelated failures are recorded accurately.
 - Pint passes.
 - The next handoff identifies one concrete task.

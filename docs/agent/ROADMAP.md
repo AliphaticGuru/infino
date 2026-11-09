@@ -70,10 +70,10 @@ Completion criteria:
 - Module-specific tests run reliably.
 
 ## Stage 4 — Commerce foundations
-**Status:** Planned; scope and module boundaries need approval
+**Status:** In progress — Inventory stock foundation complete
 
 Candidate areas:
-- Inventory.
+- ~~Inventory.~~ Stock foundation implemented: product/location stock records and validated adjustments.
 - Pricing.
 - Cart and wishlist.
 - Checkout.

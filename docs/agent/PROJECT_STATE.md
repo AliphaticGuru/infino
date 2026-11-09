@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-09  
-**Current branch at inspection:** `feature/catalog`  
-**Latest commit at inspection:** `fd5f126` — `feat(catalog): All test case fixed`
+**Last inspected:** 2026-11-09
+**Current branch at inspection:** `feature/inventory`
+**Latest commit at inspection:** `f29517b` — `feat(catalog): completed  catalog foundation(category/product)`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -44,7 +44,7 @@ Observed files include:
 - `Core/Data/Data.php`
 - `Core/module.json`
 
-Core is declared as a dependency of Identity and Catalog.
+Core is declared as a dependency of Identity, Catalog and Inventory.
 
 ### Identity
 **Status:** Foundation committed; current working-tree changes need verification.
@@ -92,6 +92,43 @@ Remaining gaps:
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
 
+### Inventory
+**Status:** Stock foundation complete and verified with focused tests.
+
+Observed files include:
+- `InventoryServiceProvider`
+- `module.json` (depends on Core and Catalog)
+- `Inventory` model
+- `InventoryFactory`
+- `create_inventories_table.php` migration
+- `CreateInventory` and `AdjustStock` actions
+- `CreatesInventory` and `AdjustsStock` contracts
+- `CreateInventoryData` and `AdjustStockData`
+
+The `inventories` table represents a stock record per product and location:
+- `id`
+- `product_id` foreign key to Catalog `products` with cascading delete
+- `location` (default `default`)
+- `quantity` integer (default `0`)
+- timestamps
+- unique `(product_id, location)`
+
+Verified on 2026-11-09:
+- The Inventory module is discovered and its provider is registered.
+- `CreatesInventory` and `AdjustsStock` resolve to their actions.
+- Inventory factory resolution and product belongs-to relationship work.
+- Initial stock creation validates product existence, location, and non-negative quantity.
+- A product may have multiple inventory records, one per location; duplicate product/location pairs are rejected.
+- Stock adjustments increase and decrease quantity atomically inside a transaction with `lockForUpdate`.
+- Adjustments that would produce negative stock, and zero adjustments, are rejected.
+- Adjustments are isolated per location.
+- Deleting a product cascades to its inventory records.
+- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions).
+
+Remaining gaps:
+- Inventory movements/audit history, reservations, release, low-stock thresholds, multiple-location management actions and reporting are not implemented.
+- Inventory assumes Catalog products without variants; variant-level inventory remains open.
+
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
 
@@ -108,20 +145,14 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The working tree was not clean.
+At the start of the Inventory foundation, the working tree was clean on branch `feature/inventory` at commit `f29517b` (`feat(catalog): completed  catalog foundation(category/product)`).
 
-Tracked changes included:
-- `compose.yaml` healthcheck fix.
-- Catalog `CreateProduct` slug handling and `Product` factory resolution.
-- Identity User model, factory and login route changes.
-- Root `src/routes/web.php` changes.
+After the Inventory implementation, the working tree contains uncommitted changes:
+- New Inventory module files under `src/app/Modules/Inventory/`.
+- New `src/tests/Feature/Inventory/InventoryFoundationTest.php`.
+- Updated shared documentation.
 
-Untracked files included:
-- Root `AGENTS.md`, `CLAUDE.md`, and `docs/`.
-- `src/app/Livewire/Pages/` and the post-create Blade view.
-- `src/tests/Feature/Catalog/`.
-
-The branch was `feature/catalog`. The latest commit was `7cdb745`.
+No commit, merge, reset or stash was performed.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -143,7 +174,9 @@ docker compose run --rm --no-deps cli php artisan test --compact
 
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
+- After completing the Inventory foundation: 73 passed, 3 failed (213 assertions).
 - Catalog focused suite: 26 passed, 86 assertions.
+- Inventory focused suite: 16 passed, 46 assertions.
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -163,3 +196,4 @@ Never report tests as passing unless the relevant command was executed and its r
 3. Add Catalog product retrieval and update behavior.
 4. Add product-category assignment actions if the product workflows require them.
 5. Define required first-release product fields and variant direction before expanding the schema.
+6. Extend Inventory with stock movements, reservations and low-stock thresholds once their business rules are approved.
