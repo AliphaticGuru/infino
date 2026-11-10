@@ -13,6 +13,5 @@ final readonly class CreateCategoryData extends Data
         public ?string $description = null,
         public ?int $parentId = null,
         public bool $isActive = true,
-    ) {
-    }
+    ) {}
 }

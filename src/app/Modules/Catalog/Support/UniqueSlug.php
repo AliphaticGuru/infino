@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 final class UniqueSlug
 {
     /**
-     * @param class-string<Model> $model
+     * @param  class-string<Model>  $model
      */
     public static function generate(
         string $model,

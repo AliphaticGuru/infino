@@ -2,6 +2,128 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-10 — Catalog product publication lifecycle implemented
+
+### Objective
+Introduce a draft/published/archived lifecycle for products, distinct from the operational `is_active` flag, with validated transitions and a safe migration for existing rows.
+
+### Work performed
+- Read the mandatory documentation, Catalog specification, current Product/Category implementation and test conventions.
+- Confirmed the current branch (`feature/catalog` at `a349034`); Inventory commits are not present on this branch.
+- Added a backed `ProductStatus` enum with `Draft`, `Published` and `Archived`.
+- Added the `z_add_status_to_products_table` migration, ordering it after table creation and backfilling existing rows to `draft`.
+- Added the `TransitionsProductStatus` contract and `TransitionProductStatus` action with publish, unpublish, archive and restore operations.
+- Enforced an explicit transition matrix: draft→published/archived, published→draft/archived, archived→draft only.
+- Resolved the product from the database inside a transaction so deleted products raise `ModelNotFoundException`.
+- Rejected invalid transitions with `ValidationException`, following the category update convention.
+- Cast `status` to the enum on `Product`, annotated it for static analysis, set drafts explicitly on creation and added `published()`/`archived()` factory states.
+- Added `ProductPublicationLifecycleTest.php` covering schema/defaults, all valid transitions, invalid transitions, missing products, attribute preservation, availability independence and update isolation.
+- Applied the migration to PostgreSQL and verified the column, default and backfill.
+- Ran Pint, Catalog tests, the full suite and PHPStan.
+- Recorded the architectural decision as DEC-017 in `DECISIONS.md` (IDs 014–016 belong to `feature/inventory`).
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Support/ProductStatus.php`
+- `src/app/Modules/Catalog/Database/Migrations/z_add_status_to_products_table.php`
+- `src/app/Modules/Catalog/Contracts/TransitionsProductStatus.php`
+- `src/app/Modules/Catalog/Actions/TransitionProductStatus.php`
+- `src/tests/Feature/Catalog/ProductPublicationLifecycleTest.php`
+
+Modified:
+- `src/app/Modules/Catalog/Models/Product.php` — status cast and annotation
+- `src/app/Modules/Catalog/Actions/CreateProduct.php` — explicit draft status
+- `src/app/Modules/Catalog/Database/Factories/ProductFactory.php` — draft default and states
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php` — lifecycle binding
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/DECISIONS.md`
+
+### Tests and verification
+- `php artisan test --compact tests/Feature/Catalog/ProductPublicationLifecycleTest.php` — 21 passed (46 assertions).
+- `php artisan test --compact tests/Feature/Catalog/` — 62 passed (172 assertions).
+- `php artisan test --compact` — 93 passed, 3 failed (253 assertions).
+- `vendor/bin/pint --format agent app/Modules/Catalog tests/Feature/Catalog` — passed.
+- `vendor/bin/phpstan analyse app/Modules/Catalog` — no errors.
+- PostgreSQL migration: applied in a new batch; `status varchar default 'draft'`; both existing rows backfilled to `draft`.
+
+### Results
+- New products default to draft; existing rows receive draft deterministically.
+- Publication, unpublication, archival and restoration work and preserve unrelated attributes.
+- Archived products cannot be published directly; restoration to draft is required first.
+- `is_active` remains independent of publication status.
+
+### Outstanding issues
+- No publication lifecycle UI, API, Filament resource or Livewire component was added, by design.
+- Category retrieval/deletion and product-category assignment actions remain unimplemented.
+- The three pre-existing Identity/post-create full-suite failures remain.
+
+### Next action
+Add product-category assignment actions, or expose the product lifecycle through an authorised delivery layer.
+
+## 2026-11-10 — Catalog product retrieval and update implemented
+
+### Work performed
+- Re-read the mandatory project documentation, Catalog specification, existing Catalog/Inventory implementation and test conventions.
+- Added `FindsProducts` contract with `FindProduct` action (`find` by ID, `findBySlug`), using `findOrFail`/`firstOrFail` so unknown products raise `ModelNotFoundException`.
+- Added `UpdatesProducts` contract, `UpdateProduct` action and `UpdateProductData`.
+- Made all update fields optional so partial updates preserve stored values; name is validated only when supplied.
+- Reused `Support\UniqueSlug` for rename collisions and for `CreateProduct`, removing the duplicated slug loop.
+- Registered both contracts in `CatalogServiceProvider`.
+- Added `is_active` boolean cast, property annotations and relation generics to `Product`; added matching annotations to `Category` so Catalog analyses clean.
+- Typed Faker word generation in the Product and Category factories and made the category parent lookup return a single model for PHPStan.
+- Added `ProductRetrievalAndUpdateTest.php` covering contracts, retrieval by ID/slug, not-found cases, full and partial updates, unchanged-name slug preservation, rename regeneration, collision suffixing, isolation from other products and validation.
+- Ran Pint, Catalog tests, the full suite and PHPStan.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Actions/FindProduct.php`
+- `src/app/Modules/Catalog/Actions/UpdateProduct.php`
+- `src/app/Modules/Catalog/Contracts/FindsProducts.php`
+- `src/app/Modules/Catalog/Contracts/UpdatesProducts.php`
+- `src/app/Modules/Catalog/Data/UpdateProductData.php`
+- `src/tests/Feature/Catalog/ProductRetrievalAndUpdateTest.php`
+
+Modified:
+- `src/app/Modules/Catalog/Actions/CreateProduct.php` — reuse `UniqueSlug`
+- `src/app/Modules/Catalog/Actions/UpdateCategory.php` — single-model parent lookup for PHPStan
+- `src/app/Modules/Catalog/Models/Product.php` — boolean cast, property and relation annotations
+- `src/app/Modules/Catalog/Models/Category.php` — property and relation annotations
+- `src/app/Modules/Catalog/Database/Factories/ProductFactory.php` — typed Faker words
+- `src/app/Modules/Catalog/Database/Factories/CategoryFactory.php` — typed Faker words
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php` — contract bindings
+- Pint formatting normalization in pre-existing Catalog data, migration, route and support files
+- `src/app/Modules/Catalog/README.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/ROADMAP.md`
+- `docs/agent/modules/CATALOG.md`
+
+### Tests and verification
+- `php artisan test --compact tests/Feature/Catalog/ProductRetrievalAndUpdateTest.php` — 15 passed (40 assertions).
+- `php artisan test --compact tests/Feature/Catalog/` — 41 passed (126 assertions).
+- `php artisan test --compact` — 116 passed, 3 failed (354 assertions).
+- `vendor/bin/pint --format agent app/Modules/Catalog tests/Feature/Catalog` — passed.
+- `vendor/bin/phpstan analyse --memory-limit=1G app/Modules/Catalog` — no errors.
+- Full-project PHPStan — 23 pre-existing errors outside Catalog and Inventory (down from 34).
+
+### Results
+- Product retrieval by ID and slug is implemented and returns `ModelNotFoundException` for unknown values.
+- Product updates persist supplied fields only; omitted name, description and active status keep their stored values.
+- Renames regenerate a unique slug; unchanged names keep their existing slug.
+- Existing product creation behaviour is unchanged after the `UniqueSlug` reuse.
+
+### Outstanding issues
+- Product publication lifecycle, category retrieval/deletion and product-category assignment actions remain unimplemented.
+- No controllers, API endpoints, Filament resources or UI were added, by design.
+- The three pre-existing Identity/post-create full-suite failures remain.
+
+### Next action
+Define product publication lifecycle behavior, or add product-category assignment actions.
+
 ## 2026-11-10 — Inventory stock movement read & reporting implemented
 
 ### Objective
