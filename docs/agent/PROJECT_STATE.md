@@ -62,12 +62,12 @@ The current working tree includes changes to the Identity User model, Fortify ac
 Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product and category foundations complete; product retrieval/update and publication lifecycle verified with focused tests.
+**Status:** Product and category foundations complete; retrieval/update, publication lifecycle and product-category assignment verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
-- Product: `CreateProduct`, `FindProduct`, `UpdateProduct` and `TransitionProductStatus` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts` and `TransitionsProductStatus` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
+- Product: `CreateProduct`, `FindProduct`, `UpdateProduct`, `TransitionProductStatus`, `AssignProductCategories`, `RemoveProductCategories` and `SyncProductCategories` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts`, `TransitionsProductStatus`, `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory` and `UpdateCategory` actions, `CreatesCategories` and `UpdatesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
@@ -100,8 +100,18 @@ Verified on 2026-11-10 (retrieval/update and publication lifecycle):
 - `is_active` remains independent of publication status, and `UpdateProduct` does not change publication status.
 - Focused tests: `ProductRetrievalAndUpdateTest.php` (15 tests, 40 assertions) and `ProductPublicationLifecycleTest.php` (21 tests, 46 assertions).
 
+Verified on 2026-11-10 (product-category assignment):
+- Categories can be assigned individually or in bulk; existing assignments are preserved.
+- Duplicate assignments are prevented by the pivot primary key and idempotent attach.
+- Selected categories can be removed while unrelated assignments remain.
+- Removing unassigned or nonexistent category IDs is safe.
+- Synchronisation attaches missing categories and removes omitted ones; an empty array clears all.
+- Nonexistent or duplicate category IDs raise `ValidationException` without partial changes.
+- Deleted or unpersisted products raise `ModelNotFoundException`.
+- Focused tests: `ProductCategoryAssignmentTest.php` (18 tests, 52 assertions).
+
 Remaining gaps:
-- Category retrieval/deletion actions and product-category assignment actions are not implemented.
+- Category retrieval/deletion actions are not implemented.
 - No publication lifecycle UI, API, Filament resource or Livewire component exists.
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
@@ -181,13 +191,14 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-10 during a merge of `develop` into `feature/inventory`.
+The repository was inspected on 2026-11-10 on `feature/inventory`.
 
-- Current branch: `feature/inventory`.
-- Pre-merge commit: `bc8fc03` — `feat(inventory): implemented inventory stock movement read & reporting`.
-- `develop` contains the Catalog foundation, product retrieval/update and publication lifecycle, plus the Inventory foundation and movement history/read services.
-- `feature/inventory` contains the Inventory foundation, movement history and read/reporting.
-- The merge is in progress and is not yet committed. Resolve conflicts, then verify before committing.
+- `develop` was merged into `feature/inventory` as `84dcb09` to unify the Catalog
+  and Inventory histories.
+- The product-category assignment implementation is uncommitted on top of that
+  merge commit.
+- The working tree contains the new assignment actions, contracts, tests and
+  documentation updates.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -214,9 +225,10 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After stock movement read/reporting: 101 passed, 3 failed (314 assertions).
 - After Catalog product retrieval/update: 116 passed, 3 failed (354 assertions).
 - After merging `feature/catalog` into `develop` (Catalog retrieval/update + publication lifecycle, Inventory foundation/history/read): **137 passed, 3 failed (400 assertions)**.
-- Catalog focused suite: 62 passed (172 assertions).
+- After product-category assignment: **155 passed, 3 failed (452 assertions)**.
+- Catalog focused suite: **80 passed (224 assertions)**.
 - Inventory focused suite: 44 passed (147 assertions).
-- Combined Catalog + Inventory focused suite: 106 passed (319 assertions).
+- `ProductCategoryAssignmentTest.php`: 18 passed (52 assertions).
 - `ProductPublicationLifecycleTest.php`: 21 passed (46 assertions).
 - `StockMovementReadTest.php`: 14 passed (42 assertions).
 - PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
@@ -237,7 +249,7 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Add product-category assignment actions if the product workflows require them.
+3. Add category retrieval and deletion actions.
 4. Expose the product lifecycle through an authorised delivery layer when a UI milestone begins.
 5. Define required first-release product fields and variant direction before expanding the schema.
 6. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
