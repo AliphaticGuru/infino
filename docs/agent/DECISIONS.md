@@ -41,6 +41,52 @@ PHP 8.5.7 has been verified in the CLI container. Recheck all versions when chan
 
 Shared project context is maintained in repository documentation so different agents can use the same source of truth.
 
+### DEC-017 — Product publication lifecycle is separate from operational availability
+**Status:** Confirmed
+**Date:** 2026-11-10
+**Branch:** `feature/catalog`
+
+Context:
+Products needed a publication lifecycle without overloading the existing
+`is_active` flag, which already expresses operational availability. The Catalog
+module also lacked a status representation and any guarded transition rules.
+
+Decision:
+- `is_active` remains the operational-availability flag. It does not express
+  publication state and is not derived from it.
+- Publication state is a separate `status` column represented by the backed
+  `Catalog\Support\ProductStatus` enum with values `draft`, `published` and
+  `archived`.
+- New products default to `draft`. Existing rows are backfilled to `draft`,
+  because publication is a new concept that cannot be inferred from `is_active`.
+- Transitions are owned by the Catalog module through the
+  `TransitionsProductStatus` contract and the `TransitionProductStatus` action.
+- Allowed transitions: draft → published/archived, published → draft/archived,
+  archived → draft only. Archived products cannot be published directly; they
+  must be restored to draft first.
+- Invalid transitions raise `ValidationException`; missing or deleted products
+  raise `ModelNotFoundException`. Transitions run inside a database transaction.
+- The enum lives in `Support/` because `config/modules.php` does not define an
+  `Enums` module subdirectory and creating one was unnecessary.
+
+Rationale:
+Keeping publication state and availability independent prevents "published but
+inactive" and "active but draft" from being conflated, and lets stock or
+merchandising status change without mutating the publication record. A single
+contract with named operations keeps the transition rules in one place rather
+than scattered across models or controllers.
+
+Consequences:
+- Product schema gains one non-null `status` column with a `draft` default.
+- Lifecycle changes affect only `status` and `updated_at`; unrelated attributes
+  are preserved.
+- Delivery layers (Filament, API, Livewire) must call the action rather than
+  writing `status` directly.
+
+Numbering note:
+DEC-014, DEC-015 and DEC-016 are recorded on `feature/inventory`. This decision
+uses DEC-017 to avoid duplicate IDs when the branches are integrated.
+
 ## Initial domain-boundary guidance
 
 These boundaries are architectural guidance to preserve during implementation. Refine them through explicit decisions when necessary.

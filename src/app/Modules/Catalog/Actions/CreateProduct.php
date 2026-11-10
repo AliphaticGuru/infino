@@ -7,6 +7,7 @@ namespace App\Modules\Catalog\Actions;
 use App\Modules\Catalog\Contracts\CreatesProducts;
 use App\Modules\Catalog\Data\CreateProductData;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Support\UniqueSlug;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -30,6 +31,7 @@ final class CreateProduct implements CreatesProducts
             'slug' => $this->uniqueSlug($validated['name']),
             'description' => $validated['description'] ?? null,
             'is_active' => true,
+            'status' => ProductStatus::Draft,
         ]);
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Catalog\Database\Factories;
 
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Support\ProductStatus;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -28,6 +29,26 @@ final class ProductFactory extends Factory
             'description' => fake()->paragraph(),
 
             'is_active' => true,
+
+            'status' => ProductStatus::Draft,
         ];
     }
+<<<<<<< develop
 }
+=======
+
+    public function published(): static
+    {
+        return $this->state([
+            'status' => ProductStatus::Published,
+        ]);
+    }
+
+    public function archived(): static
+    {
+        return $this->state([
+            'status' => ProductStatus::Archived,
+        ]);
+    }
+}
+>>>>>>> local

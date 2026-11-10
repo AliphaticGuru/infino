@@ -5,10 +5,28 @@ declare(strict_types=1);
 namespace App\Modules\Catalog\Models;
 
 use App\Modules\Catalog\Database\Factories\ProductFactory;
+<<<<<<< develop
+=======
+use App\Modules\Catalog\Support\ProductStatus;
+use Carbon\CarbonInterface;
+>>>>>>> local
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+<<<<<<< develop
+=======
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $slug
+ * @property string|null $description
+ * @property bool $is_active
+ * @property ProductStatus $status
+ * @property CarbonInterface|null $created_at
+ * @property CarbonInterface|null $updated_at
+ */
+>>>>>>> local
 final class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -16,6 +34,17 @@ final class Product extends Model
 
     protected $guarded = [];
 
+<<<<<<< develop
+=======
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+            'status' => ProductStatus::class,
+        ];
+    }
+
+>>>>>>> local
     protected static function newFactory(): ProductFactory
     {
         return ProductFactory::new();
