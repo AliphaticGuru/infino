@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-09
+**Last inspected:** 2026-11-10
 **Current branch at inspection:** `feature/inventory`
-**Latest commit at inspection:** `f29517b` — `feat(catalog): completed  catalog foundation(category/product)`
+**Latest commit at inspection:** `24dca64` — `feat(inventory): implemented inventory stock movement history`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -104,6 +104,7 @@ Observed files include:
 - `CreateInventory` and `AdjustStock` actions
 - `CreatesInventory` and `AdjustsStock` contracts
 - `CreateInventoryData` and `AdjustStockData`
+- `StockMovementReadService` (read-only retrieval and reporting)
 
 The `inventories` table represents a stock record per product and location:
 - `id`
@@ -138,12 +139,17 @@ Verified on 2026-11-09:
 - Movement persistence failure rolls back the stock update; outer transaction rollback reverts both.
 - Movement records have no update or delete operations and no updated timestamp.
 - Deleting a product cascades to its inventory records and stock movements.
-- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions) and `StockMovementTest.php` (14 tests, 59 assertions).
+- Movement history is retrievable through `StockMovementReadService` with pagination (default 20, newest first), product filtering, reason filtering and inclusive date-range filtering.
+- Per-product movement history reuses the same paginated query.
+- Daily summaries derive increase and decrease totals from recorded movements and accept optional product and date-range filters.
+- Read operations never modify inventory or movement records.
+- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions), `StockMovementTest.php` (14 tests, 59 assertions) and `StockMovementReadTest.php` (14 tests, 42 assertions).
 
 Remaining gaps:
-- Stock reservations, release, low-stock thresholds, location management actions and reporting are not implemented.
+- Stock reservations, release, low-stock thresholds and location management actions are not implemented.
 - Inventory assumes Catalog products without variants; variant-level inventory remains open.
-- No dedicated movement query/read API or UI exists yet.
+- Reporting is daily-grouped only; no per-location or per-reason breakdown exists.
+- No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
 
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
@@ -163,10 +169,13 @@ Inspect the module infrastructure before changing loading behavior.
 
 At the start of the Inventory foundation, the working tree was clean on branch `feature/inventory` at commit `f29517b` (`feat(catalog): completed  catalog foundation(category/product)`).
 
-After the Inventory implementation, the working tree contains uncommitted changes:
-- New Inventory module files under `src/app/Modules/Inventory/`.
-- New `src/tests/Feature/Inventory/InventoryFoundationTest.php`.
-- Updated shared documentation.
+Stock movement history was subsequently committed as `24dca64` (`feat(inventory): implemented inventory stock movement history`).
+
+After the stock movement read/reporting implementation, the working tree contains uncommitted changes:
+- New `src/app/Modules/Inventory/Services/StockMovementReadService.php`.
+- New `src/tests/Feature/Inventory/StockMovementReadTest.php`.
+- Pint import-ordering changes in the `Inventory` and `StockMovement` models.
+- Updated shared documentation and the Inventory README.
 
 No commit, merge, reset or stash was performed.
 
@@ -182,7 +191,7 @@ Fix: the healthcheck now reads the container's own variables with `pg_isready -U
 
 ## 7. Test status
 
-Baseline and post-change full-suite results were captured on 2026-11-09 using:
+Baseline and post-change full-suite results were captured on 2026-11-09 and 2026-11-10 using:
 
 ```bash
 docker compose run --rm --no-deps cli php artisan test --compact
@@ -191,8 +200,12 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
 - After completing the Inventory foundation: 87 passed, 3 failed (272 assertions).
+- After stock movement history: 87 passed, 3 failed (272 assertions).
+- After stock movement read/reporting: 101 passed, 3 failed (314 assertions).
 - Catalog focused suite: 26 passed, 86 assertions.
-- Inventory focused suite: 30 passed, 105 assertions.
+- Inventory focused suite after read/reporting: 44 passed, 147 assertions.
+- `StockMovementReadTest.php`: 14 passed, 42 assertions.
+- PHPStan level 7 on `app/Modules/Inventory`: no errors.
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -212,4 +225,5 @@ Never report tests as passing unless the relevant command was executed and its r
 3. Add Catalog product retrieval and update behavior.
 4. Add product-category assignment actions if the product workflows require them.
 5. Define required first-release product fields and variant direction before expanding the schema.
-6. Extend Inventory with stock movements, reservations and low-stock thresholds once their business rules are approved.
+6. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
+7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.

@@ -2,6 +2,97 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-10 — Inventory stock movement read & reporting implemented
+
+### Objective
+Extend Inventory with read-only stock movement retrieval and reporting while keeping the append-only movement history and stock adjustment behaviour unchanged.
+
+### Work performed
+- Re-read the mandatory project documentation, module specification, Inventory implementation and tests.
+- Added `StockMovementReadService` as a read-only service covering pagination, product filtering, reason filtering, date-range filtering, per-product history and daily summaries.
+- Summaries derive increases and decreases from recorded movements; no aggregate table was introduced.
+- Added `StockMovementReadTest.php` covering pagination (default and custom page size), product filtering, reason filtering, date-range filtering, product history, summaries (including increase/decrease separation), empty history, count/total helpers, multiple locations and verification that reads never modify inventory or movement records.
+- Fixed the tests to account for the Laravel 13 paginator returning a plain array from `items()`.
+- Ran Pint, PHPStan (Inventory module clean at level 7) and the focused Inventory suite.
+- Updated project state, work log, handoff and decision documentation (DEC-016).
+
+### Files changed
+- `src/app/Modules/Inventory/Services/StockMovementReadService.php` (new)
+- `src/tests/Feature/Inventory/StockMovementReadTest.php` (new)
+- `src/app/Modules/Inventory/Models/Inventory.php` (Pint import ordering)
+- `src/app/Modules/Inventory/Models/StockMovement.php` (Pint import ordering)
+- `src/app/Modules/Inventory/README.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/DECISIONS.md`
+
+### Tests and verification
+- `php artisan test --compact tests/Feature/Inventory/StockMovementReadTest.php` — 14 passed (42 assertions).
+- `php artisan test --compact tests/Feature/Inventory/` — 44 passed (147 assertions).
+- `php artisan test --compact` — 101 passed, 3 failed (314 assertions).
+- `vendor/bin/pint --format agent app/Modules/Inventory tests/Feature/Inventory` — passed after fixes.
+- `vendor/bin/phpstan analyse --memory-limit=1G app/Modules/Inventory` — no errors.
+
+### Results
+- Read/reporting functionality is implemented and verified; stock adjustment behaviour is unchanged.
+- The three full-suite failures are the same pre-existing Identity/post-create failures.
+
+### Outstanding issues
+- No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
+- Reporting is daily-grouped only; no per-location or per-reason breakdown exists yet.
+
+### Next action
+Add Catalog product retrieval and update behaviour, or expose Inventory movement history through an authorised read API or Filament resource.
+
+## 2026-11-09 — Inventory stock movement history implemented
+
+### Objective
+Record every successful stock adjustment as an immutable, auditable stock movement.
+
+### Work performed
+- Added the `stock_movements` migration with a cascading product foreign key, location snapshot, signed delta, resulting quantity, reason, nullable reference, `created_at` only, and indexes on `(product_id, location)` and `(product_id, created_at)`.
+- Added the `StockMovement` model with `UPDATED_AT = null` and no update/delete operations.
+- Added `StockMovementFactory` with a `forLocation()` state.
+- Extended `AdjustStockData` with a required `reason` and optional `reference`.
+- Extended `AdjustStock` to validate the movement fields, wrap stock update and movement creation in one transaction with `lockForUpdate`, and roll back on failure.
+- Added PHPDoc property annotations to the `Inventory` model for PHPStan level 7.
+- Added `StockMovementTest.php` (14 tests) covering schema, factory, movement contents, atomicity, rollback, rejection cases, immutability and product-deletion cascade.
+- Updated existing `InventoryFoundationTest` adjustment calls with reasons without weakening assertions.
+- Applied the migration to PostgreSQL (batch 5) and verified columns, indexes and the foreign key.
+
+### Files changed
+- `src/app/Modules/Inventory/Database/Migrations/create_stock_movements_table.php`
+- `src/app/Modules/Inventory/Models/StockMovement.php`
+- `src/app/Modules/Inventory/Database/Factories/StockMovementFactory.php`
+- `src/app/Modules/Inventory/Data/AdjustStockData.php`
+- `src/app/Modules/Inventory/Actions/AdjustStock.php`
+- `src/app/Modules/Inventory/Models/Inventory.php`
+- `src/app/Modules/Inventory/README.md`
+- `src/tests/Feature/Inventory/StockMovementTest.php`
+- `src/tests/Feature/Inventory/InventoryFoundationTest.php`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/DECISIONS.md`
+
+### Tests and verification
+- `php artisan test --compact tests/Feature/Inventory/StockMovementTest.php` — 14 passed (59 assertions).
+- Focused Inventory suite — 30 passed (105 assertions).
+- Full suite — 87 passed, 3 failed (272 assertions).
+- Pint — passed.
+- PHPStan level 7 — Inventory module clean; 34 pre-existing errors elsewhere.
+
+### Results
+- Every successful adjustment writes exactly one movement atomically with the stock update.
+- Rejected, failed and zero adjustments write no movement.
+- Movement rows cannot be updated through normal operations.
+
+### Outstanding issues
+- No movement read/query/reporting layer existed at this point (implemented in the 2026-11-10 entry).
+- No PostgreSQL CHECK constraints were added because the test environment uses SQLite.
+
+### Next action
+Add read-only movement retrieval and reporting.
+
 ## 2026-11-09 — Inventory stock foundation implemented
 
 ### Objective

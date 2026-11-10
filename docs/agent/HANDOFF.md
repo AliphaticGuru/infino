@@ -1,15 +1,15 @@
 # Infino — Current Agent Handoff
 
-**Last updated:** 2026-11-09
+**Last updated:** 2026-11-10
 **Branch at last inspection:** `feature/inventory`
-**Latest commit at last inspection:** `f29517b` — `feat(catalog): completed  catalog foundation(category/product)`
+**Latest commit at last inspection:** `24dca64` — `feat(inventory): implemented inventory stock movement history`
 
 ## Objective
 
-Continue commerce foundations after the Inventory stock foundation. The next
-concrete task is to add auditable stock movement history, or to continue Catalog
-product retrieval and update behavior if Catalog is prioritized. Keep Identity,
-Cart, Checkout, Orders and Payments untouched.
+Continue commerce foundations after Inventory stock movement read/reporting.
+The next concrete task is Catalog product retrieval and update behavior, or
+exposing Inventory movement history through an authorised read API/Filament
+resource. Keep Identity, Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -44,12 +44,13 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
 - Product and category foundations: verified.
-- Inventory stock foundation: verified.
+- Inventory stock foundation and append-only movement history: verified.
+- Inventory movement read/reporting service: verified.
 - Migrations: products (batch 2); categories and category_product (batch 3);
-  inventories (batch 4).
+  inventories (batch 4); stock_movements (batch 5).
 - Catalog focused suite: **26 passed, 86 assertions**.
-- Inventory focused suite: **30 passed, 105 assertions**.
-- Full suite: **87 passed, 3 failed (272 assertions)**.
+- Inventory focused suite: **44 passed, 147 assertions**.
+- Full suite: **101 passed, 3 failed (314 assertions)**.
 
 ## Known failures unrelated to Inventory
 
@@ -72,8 +73,21 @@ repository still fails them. Do not modify them unless explicitly authorized.
   non-zero adjustments.
 - Atomic adjustments in a transaction with `lockForUpdate`, rejecting results
   below zero.
+- Append-only `stock_movements` table and `StockMovement` model, written in the
+  same transaction as the stock update.
+- `StockMovementReadService` for pagination, product/reason/date filtering,
+  per-product history and daily increase/decrease summaries. It performs no
+  writes.
 
 ## Immediate task sequence
+
+### Option A — Expose Inventory movement history
+
+- Add an authorised read layer (API resource or Filament page) over
+  `StockMovementReadService`.
+- Reuse the existing service filters and pagination; do not duplicate queries.
+- Add tests for filtering, pagination and access control.
+- Keep adjustment and movement-write behaviour unchanged.
 
 ### Option B — Catalog product retrieval and update
 
@@ -82,11 +96,11 @@ repository still fails them. Do not modify them unless explicitly authorized.
 - Reuse `Catalog\Support\UniqueSlug`.
 - Add focused tests and keep Inventory behavior unchanged.
 
-### Option A continuation — Stock movement refinements (if prioritized later)
+### Later Inventory refinements
 
-- Define read operations and reporting for movement history.
 - Add location entity and management.
 - Implement stock reservations and release logic.
+- Add per-location and per-reason reporting breakdowns.
 - Keep adjustments and reservations within separate transactions where appropriate.
 
 ### Verification and shared memory

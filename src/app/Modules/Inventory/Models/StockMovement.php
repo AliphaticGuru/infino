@@ -6,6 +6,7 @@ namespace App\Modules\Inventory\Models;
 
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Inventory\Database\Factories\StockMovementFactory;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $resulting_quantity
  * @property string $reason
  * @property string|null $reference
- * @property \Carbon\CarbonInterface|null $created_at
+ * @property CarbonInterface|null $created_at
  * @property-read Product $product
  */
 final class StockMovement extends Model
