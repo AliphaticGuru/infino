@@ -1,15 +1,15 @@
 # Infino — Current Agent Handoff
 
 **Last updated:** 2026-11-10
-**Branch at last inspection:** `feature/inventory`
-**Latest commit at last inspection:** `84dcb09` — `merge: integrate develop into feature/inventory`
+**Branch at last inspection:** `feature/catalog`
+**Latest commit at last inspection:** `565f8bd` — `feat(catalog): implement product-category assignment actions`
 
 ## Objective
 
-Continue Catalog MVP work after the product-category assignment foundation. The
-next concrete task is category retrieval and deletion actions, or exposing the
-product lifecycle through an authorised delivery layer when a UI milestone
-begins. Keep Identity, Cart, Checkout, Orders and Payments untouched.
+Continue Catalog MVP work after category retrieval and deletion. The next concrete
+task is exposing Catalog management through an authorised delivery layer when a
+UI milestone begins, or defining the required first-release product fields and
+variant direction. Keep Identity, Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -25,8 +25,8 @@ begins. Keep Identity, Cart, Checkout, Orders and Payments untouched.
 
 ## Important repository protection
 
-The working tree contains uncommitted product-category assignment work on top of
-the `84dcb09` merge commit.
+The working tree contains uncommitted category retrieval and deletion work on top
+of the `565f8bd` commit.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
@@ -44,11 +44,12 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Application command pattern: `docker compose run --rm --no-deps cli <command>`.
 - Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
-- Catalog foundation, product retrieval/update, publication lifecycle and product-category assignment: verified.
+- Catalog foundation, product retrieval/update, publication lifecycle, product-category assignment and category retrieval/deletion: verified.
 - Inventory foundation, movement history and read/reporting: verified.
-- Catalog focused suite: **80 passed (224 assertions)**.
+- Catalog focused suite: **93 passed (259 assertions)**.
 - Inventory focused suite: **44 passed (147 assertions)**.
-- Full suite after product-category assignment: **155 passed, 3 failed (452 assertions)**.
+- Full suite after category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
+- `CategoryRetrievalAndDeletionTest.php`: **13 passed (35 assertions)**.
 - `ProductCategoryAssignmentTest.php`: **18 passed (52 assertions)**.
 - Pint on Catalog/Inventory source and tests: passed.
 - PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
@@ -69,6 +70,14 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - `Product` and `Category` models, factories, migrations and relationships.
 - `CreateProduct`, `FindProduct`, `UpdateProduct` and `TransitionProductStatus` actions and contracts.
 - `CreateCategory` and `UpdateCategory` actions and contracts.
+- Category retrieval and deletion:
+  - `FindsCategories` contract and `FindCategory` action: `find`, paginated
+    categories and a category's paginated products (20 per page by default).
+  - `DeletesCategories` contract and `DeleteCategory` action.
+  - Deletion is transactional and rejects categories with assigned products via
+    `ValidationException`, leaving pivot rows intact.
+  - Unassigned categories are deleted; children are promoted to root through the
+    existing `parent_id` `nullOnDelete` behaviour.
 - Collision-safe product and category slugs through `Support\UniqueSlug`,
   including rename handling.
 - Self-referencing category hierarchy with `nullOnDelete`.
@@ -104,17 +113,19 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 ## Immediate task sequence
 
-### Option A — Category retrieval and deletion
+### Option A — Authorised Catalog delivery
 
-- Add the smallest useful read/delete operations and contracts.
-- Decide whether deletion is restricted while products are assigned.
-- Add focused tests; do not introduce UI or API endpoints.
-
-### Option B — Authorised lifecycle delivery
-
-- Expose product status transitions through a future Filament resource or API
-  resource, reusing `TransitionsProductStatus`.
+- Expose product and category management (including lifecycle and category
+  assignment) through a future Filament resource or API resource.
+- Reuse `TransitionsProductStatus`, `AssignsProductCategories`,
+  `RemovesProductCategories`, `SyncsProductCategories`, `FindsCategories` and
+  `DeletesCategories`; do not duplicate business rules.
 - Add authorization and request-validation tests at that layer.
+
+### Option B — Define first-release product scope
+
+- Decide required product fields and whether products are variant-based.
+- Record the decision in `DECISIONS.md` before expanding the schema.
 
 ### Option C — Expose Inventory movement history
 
@@ -140,7 +151,7 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 - The merge is conflict-free and the working tree is coherent.
 - The chosen task is implemented within its owning module.
-- Validation, lifecycle, assignment and stock rules are covered by tests.
+- Validation, lifecycle, assignment, deletion and stock rules are covered by tests.
 - Catalog and Inventory focused tests remain green.
 - Full-suite results and unrelated failures are recorded accurately.
 - Pint passes.

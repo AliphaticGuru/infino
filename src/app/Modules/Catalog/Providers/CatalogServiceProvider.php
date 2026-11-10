@@ -7,6 +7,8 @@ namespace App\Modules\Catalog\Providers;
 use App\Modules\Catalog\Actions\AssignProductCategories;
 use App\Modules\Catalog\Actions\CreateCategory;
 use App\Modules\Catalog\Actions\CreateProduct;
+use App\Modules\Catalog\Actions\DeleteCategory;
+use App\Modules\Catalog\Actions\FindCategory;
 use App\Modules\Catalog\Actions\FindProduct;
 use App\Modules\Catalog\Actions\RemoveProductCategories;
 use App\Modules\Catalog\Actions\SyncProductCategories;
@@ -16,6 +18,8 @@ use App\Modules\Catalog\Actions\UpdateProduct;
 use App\Modules\Catalog\Contracts\AssignsProductCategories;
 use App\Modules\Catalog\Contracts\CreatesCategories;
 use App\Modules\Catalog\Contracts\CreatesProducts;
+use App\Modules\Catalog\Contracts\DeletesCategories;
+use App\Modules\Catalog\Contracts\FindsCategories;
 use App\Modules\Catalog\Contracts\FindsProducts;
 use App\Modules\Catalog\Contracts\RemovesProductCategories;
 use App\Modules\Catalog\Contracts\SyncsProductCategories;
@@ -71,6 +75,16 @@ final class CatalogServiceProvider extends BaseModuleServiceProvider
         $this->app->bind(
             SyncsProductCategories::class,
             SyncProductCategories::class,
+        );
+
+        $this->app->bind(
+            FindsCategories::class,
+            FindCategory::class,
+        );
+
+        $this->app->bind(
+            DeletesCategories::class,
+            DeleteCategory::class,
         );
     }
 }

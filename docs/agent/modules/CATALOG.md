@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product and category foundations complete; retrieval, update, publication lifecycle and product-category assignment verified
+**Status:** Product and category foundations complete; retrieval, update, publication lifecycle, product-category assignment and category retrieval/deletion verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -41,8 +41,12 @@ Category:
 - `Database/Migrations/create_z_category_product_table.php`
 - `Actions/CreateCategory.php`
 - `Actions/UpdateCategory.php`
+- `Actions/FindCategory.php`
+- `Actions/DeleteCategory.php`
 - `Contracts/CreatesCategories.php`
 - `Contracts/UpdatesCategories.php`
+- `Contracts/FindsCategories.php`
+- `Contracts/DeletesCategories.php`
 - `Data/CreateCategoryData.php`
 - `Data/UpdateCategoryData.php`
 - `Support/UniqueSlug.php`
@@ -238,6 +242,44 @@ Verified on 2026-11-09 with `src/tests/Feature/Catalog/CategoryFoundationTest.ph
 - Update, parent reassignment, cycle rejection and rename slug collisions.
 - Parent deletion promotes children to root categories.
 
+## Category retrieval and deletion
+
+Retrieval (`FindsCategories` / `FindCategory`):
+- `find(int $id)` returns the category or throws `ModelNotFoundException`.
+- `paginate(int $perPage = 20, ?int $page = null)` returns a
+  `LengthAwarePaginator` of categories ordered by `id`; the default page size is
+  20, matching the Inventory read service convention.
+- `products(Category $category, int $perPage = 20, ?int $page = null)` returns a
+  `LengthAwarePaginator` of the category's products ordered by `products.id`.
+- The paginated product query re-resolves the category from the database, so a
+  deleted category raises `ModelNotFoundException` instead of returning an empty
+  page.
+
+Deletion (`DeletesCategories` / `DeleteCategory`):
+- Accepts a `Category` and returns `void`.
+- Runs in a database transaction and re-resolves the category from the database.
+- A category with any assigned products raises `ValidationException` with the
+  message `A category with assigned products cannot be deleted.`
+- An unassigned category is deleted.
+- Product-category relationships are never detached implicitly; a rejected
+  deletion leaves the pivot rows intact.
+- Deleting a parent category relies on the existing `parent_id` `nullOnDelete`
+  behaviour, so children are promoted to root categories. No new migration was
+  added.
+
+Verified on 2026-11-10 with `src/tests/Feature/Catalog/CategoryRetrievalAndDeletionTest.php`:
+- Contract resolution through the module provider.
+- Retrieval by ID and `ModelNotFoundException` for unknown IDs.
+- Pagination totals, default/custom page sizes, explicit page selection and
+  `id` ordering.
+- Category product pagination, empty product paginators and
+  `ModelNotFoundException` for a deleted category.
+- Successful deletion of an unassigned category.
+- Rejection of deletion when products are assigned, with the relationship and
+  product preserved.
+- `ModelNotFoundException` when deleting an already-deleted category.
+- Child promotion to root after parent deletion.
+
 ## Proposed future capabilities
 
 These are not yet implemented or approved as final scope:
@@ -260,9 +302,9 @@ These are not yet implemented or approved as final scope:
 7. ~~Can products be retrieved and updated?~~ Verified: find by ID/slug, partial updates and rename slug regeneration.
 8. ~~What does the product publication lifecycle require beyond `is_active`?~~ Verified: separate `status` enum with guarded transitions (DEC-017).
 9. ~~How are products assigned to categories?~~ Verified: assign, remove and sync actions with validation (2026-11-10).
-10. What product fields are required for the first release?
-11. Are products variant-based from the beginning?
-12. Should category deletion be restricted while products are assigned?
+10. ~~Can categories be retrieved and deleted safely?~~ Verified: find by ID, pagination, category products and guarded deletion (2026-11-10).
+11. What product fields are required for the first release?
+12. Are products variant-based from the beginning?
 
 ## Acceptance criteria for the initial Catalog foundation
 
@@ -272,6 +314,7 @@ These are not yet implemented or approved as final scope:
 - Product publication status defaults to draft and transitions are validated and tested.
 - Publication status is independent of `is_active` availability.
 - Product-category assignment, removal and synchronisation are validated and tested.
+- Category retrieval and deletion rules are validated and tested; assigned categories cannot be deleted.
 - Slug uniqueness behavior is defined and tested.
 - Parent-child and product-category relationships are defined and tested.
 - Relevant Catalog tests pass.

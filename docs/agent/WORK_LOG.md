@@ -2,6 +2,58 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-10 — Catalog category retrieval and deletion implemented
+
+### Objective
+Implement category retrieval and safe category deletion within the Catalog module.
+
+### Work performed
+- Read the mandatory documentation, Catalog specification, Category model/factory/migration, existing actions, contracts and tests.
+- Reused the existing `Category::products()` relationship and `parent_id` `nullOnDelete` behaviour; no new migration was added.
+- Added the `FindsCategories` contract with `find`, `paginate` and `products`, and the `FindCategory` action.
+- Added the `DeletesCategories` contract and the `DeleteCategory` action.
+- Retrieval paginates categories ordered by `id` and a category's products ordered by `products.id`, defaulting to 20 per page with optional explicit page selection.
+- `products()` re-resolves the category so a deleted category raises `ModelNotFoundException`.
+- Deletion runs in a transaction, re-resolves the category, rejects categories with assigned products via `ValidationException`, and otherwise deletes the category.
+- A rejected deletion leaves product-category pivot rows and products intact.
+- Registered both contracts in `CatalogServiceProvider`.
+- Added `CategoryRetrievalAndDeletionTest.php` with 13 tests covering the required behaviours.
+- Ran Pint, PHPStan, the Catalog suite and the full suite.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Contracts/FindsCategories.php`
+- `src/app/Modules/Catalog/Contracts/DeletesCategories.php`
+- `src/app/Modules/Catalog/Actions/FindCategory.php`
+- `src/app/Modules/Catalog/Actions/DeleteCategory.php`
+- `src/tests/Feature/Catalog/CategoryRetrievalAndDeletionTest.php`
+
+Modified:
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+
+### Tests and verification
+- `CategoryRetrievalAndDeletionTest.php`: 13 passed (35 assertions).
+- Catalog focused suite: 93 passed (259 assertions).
+- Full suite: 168 passed, 3 failed (487 assertions).
+- Pint: passed.
+- PHPStan on `app/Modules/Catalog`: no errors.
+
+### Results
+- Categories can be retrieved by ID, paginated, and queried for their products.
+- Unassigned categories can be deleted; categories with products are rejected with a validation error.
+- Existing product-category relationships are preserved when deletion is rejected.
+
+### Outstanding issues
+- No UI, API or Filament layer was added.
+- The three pre-existing Identity/post-create failures remain.
+
+### Next action
+Expose Catalog management through an authorised delivery layer when a UI milestone begins, or define required first-release product fields and variant direction.
+
 ## 2026-11-10 — Catalog product-category assignment implemented
 
 ### Objective

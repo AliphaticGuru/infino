@@ -62,14 +62,14 @@ The current working tree includes changes to the Identity User model, Fortify ac
 Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product and category foundations complete; retrieval/update, publication lifecycle and product-category assignment verified with focused tests.
+**Status:** Product and category foundations complete; retrieval/update, publication lifecycle, product-category assignment and category retrieval/deletion verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
 - Product: `CreateProduct`, `FindProduct`, `UpdateProduct`, `TransitionProductStatus`, `AssignProductCategories`, `RemoveProductCategories` and `SyncProductCategories` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts`, `TransitionsProductStatus`, `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
-- Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory` and `UpdateCategory` actions, `CreatesCategories` and `UpdatesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
+- Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory`, `UpdateCategory`, `FindCategory` and `DeleteCategory` actions, `CreatesCategories`, `UpdatesCategories`, `FindsCategories` and `DeletesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
 - Shared slug helper: `Support/UniqueSlug.php`.
 
@@ -110,8 +110,17 @@ Verified on 2026-11-10 (product-category assignment):
 - Deleted or unpersisted products raise `ModelNotFoundException`.
 - Focused tests: `ProductCategoryAssignmentTest.php` (18 tests, 52 assertions).
 
+Verified on 2026-11-10 (category retrieval and deletion):
+- Categories can be retrieved by ID; unknown IDs raise `ModelNotFoundException`.
+- Categories are paginated ordered by `id`, defaulting to 20 per page with optional explicit page selection.
+- A category's products are paginated ordered by `products.id`; a deleted category raises `ModelNotFoundException`.
+- An unassigned category can be deleted.
+- A category with assigned products raises `ValidationException` with a meaningful message and is not deleted.
+- Rejected deletion preserves the product-category pivot rows and the product.
+- Deleting a parent category promotes children to root via the existing `nullOnDelete` behaviour.
+- Focused tests: `CategoryRetrievalAndDeletionTest.php` (13 tests, 35 assertions).
+
 Remaining gaps:
-- Category retrieval/deletion actions are not implemented.
 - No publication lifecycle UI, API, Filament resource or Livewire component exists.
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
@@ -191,14 +200,13 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-10 on `feature/inventory`.
+The repository was inspected on 2026-11-10 on `feature/catalog`.
 
-- `develop` was merged into `feature/inventory` as `84dcb09` to unify the Catalog
-  and Inventory histories.
-- The product-category assignment implementation is uncommitted on top of that
-  merge commit.
-- The working tree contains the new assignment actions, contracts, tests and
+- `feature/catalog` HEAD is `565f8bd` (`feat(catalog): implement product-category assignment actions`).
+- The category retrieval and deletion implementation is uncommitted on top of that commit.
+- The working tree contains the new retrieval/deletion actions, contracts, tests and
   documentation updates.
+- An empty, untracked `changes.patch` exists at the repository root and was not committed.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -226,8 +234,10 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After Catalog product retrieval/update: 116 passed, 3 failed (354 assertions).
 - After merging `feature/catalog` into `develop` (Catalog retrieval/update + publication lifecycle, Inventory foundation/history/read): **137 passed, 3 failed (400 assertions)**.
 - After product-category assignment: **155 passed, 3 failed (452 assertions)**.
-- Catalog focused suite: **80 passed (224 assertions)**.
+- After category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
+- Catalog focused suite: **93 passed (259 assertions)**.
 - Inventory focused suite: 44 passed (147 assertions).
+- `CategoryRetrievalAndDeletionTest.php`: 13 passed (35 assertions).
 - `ProductCategoryAssignmentTest.php`: 18 passed (52 assertions).
 - `ProductPublicationLifecycleTest.php`: 21 passed (46 assertions).
 - `StockMovementReadTest.php`: 14 passed (42 assertions).
@@ -249,8 +259,7 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Add category retrieval and deletion actions.
-4. Expose the product lifecycle through an authorised delivery layer when a UI milestone begins.
-5. Define required first-release product fields and variant direction before expanding the schema.
-6. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
-7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
+3. Expose Catalog product and category management through an authorised delivery layer when a UI milestone begins.
+4. Define required first-release product fields and variant direction before expanding the schema.
+5. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
+6. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
