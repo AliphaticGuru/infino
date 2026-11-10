@@ -93,14 +93,14 @@ Remaining gaps:
 - Names are not unique; duplicate names receive suffixed slugs.
 
 ### Inventory
-**Status:** Stock foundation complete and verified with focused tests.
+**Status:** Stock foundation and append-only movement history complete and verified with focused tests.
 
 Observed files include:
 - `InventoryServiceProvider`
 - `module.json` (depends on Core and Catalog)
-- `Inventory` model
-- `InventoryFactory`
-- `create_inventories_table.php` migration
+- `Inventory` and `StockMovement` models
+- `InventoryFactory` and `StockMovementFactory`
+- `create_inventories_table.php` and `create_stock_movements_table.php` migrations
 - `CreateInventory` and `AdjustStock` actions
 - `CreatesInventory` and `AdjustsStock` contracts
 - `CreateInventoryData` and `AdjustStockData`
@@ -113,21 +113,37 @@ The `inventories` table represents a stock record per product and location:
 - timestamps
 - unique `(product_id, location)`
 
+The `stock_movements` table is append-only:
+- `id`
+- `product_id` foreign key to Catalog `products` with cascading delete
+- `location` (snapshot at adjustment time)
+- `quantity_delta` signed integer
+- `resulting_quantity` integer
+- `reason` string
+- nullable `reference` string
+- `created_at` only; no `updated_at`
+- indexes on `(product_id, location)` and `(product_id, created_at)`
+
 Verified on 2026-11-09:
 - The Inventory module is discovered and its provider is registered.
 - `CreatesInventory` and `AdjustsStock` resolve to their actions.
-- Inventory factory resolution and product belongs-to relationship work.
+- Inventory and stock movement factories resolve and persist records.
 - Initial stock creation validates product existence, location, and non-negative quantity.
 - A product may have multiple inventory records, one per location; duplicate product/location pairs are rejected.
 - Stock adjustments increase and decrease quantity atomically inside a transaction with `lockForUpdate`.
 - Adjustments that would produce negative stock, and zero adjustments, are rejected.
 - Adjustments are isolated per location.
-- Deleting a product cascades to its inventory records.
-- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions).
+- Every successful adjustment writes a movement with the product, location, signed delta, resulting quantity, reason, optional reference and creation timestamp in the same transaction.
+- Failed, rejected and zero adjustments write no movement.
+- Movement persistence failure rolls back the stock update; outer transaction rollback reverts both.
+- Movement records have no update or delete operations and no updated timestamp.
+- Deleting a product cascades to its inventory records and stock movements.
+- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions) and `StockMovementTest.php` (14 tests, 59 assertions).
 
 Remaining gaps:
-- Inventory movements/audit history, reservations, release, low-stock thresholds, multiple-location management actions and reporting are not implemented.
+- Stock reservations, release, low-stock thresholds, location management actions and reporting are not implemented.
 - Inventory assumes Catalog products without variants; variant-level inventory remains open.
+- No dedicated movement query/read API or UI exists yet.
 
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
@@ -174,9 +190,9 @@ docker compose run --rm --no-deps cli php artisan test --compact
 
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
-- After completing the Inventory foundation: 73 passed, 3 failed (213 assertions).
+- After completing the Inventory foundation: 87 passed, 3 failed (272 assertions).
 - Catalog focused suite: 26 passed, 86 assertions.
-- Inventory focused suite: 16 passed, 46 assertions.
+- Inventory focused suite: 30 passed, 105 assertions.
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.

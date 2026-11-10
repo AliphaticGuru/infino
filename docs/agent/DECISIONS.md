@@ -41,24 +41,25 @@ PHP 8.5.7 has been verified in the CLI container. Recheck all versions when chan
 
 Shared project context is maintained in repository documentation so different agents can use the same source of truth.
 
-### DEC-014 — Inventory records are scoped by product and location
+### DEC-015 — Inventory stock movement history is append-only
 **Status:** Confirmed for the Inventory foundation
 
-Inventory stock is stored per Catalog product and stock location. Each
-`inventories` row represents one product at one location, with a unique
-constraint on `(product_id, location)` and a default location of `default`.
-
-A product may therefore have multiple inventory records. This keeps the schema
-compatible with the blueprint's proposed multiple stock locations without
-requiring a separate location entity.
-
-Inventory depends on Catalog and references products by foreign key. Catalog
-does not depend on Inventory in order to preserve the module boundary.
+Every successful stock adjustment records a StockMovement with the product,
+location, signed quantity delta, resulting quantity, reason, optional reference
+and creation timestamp. Movement records have no `updated_at` and are
+append-only — no update or delete operations are supported through normal
+application operations. Persistence of stock and movement happens in a single
+database transaction with row-level locking. A rejected or zero adjustment
+produces no movement.
 
 Consequences:
-- Variant-level inventory is not represented until product variants exist.
-- Location management is currently free-form text; a dedicated locations model
-  can be introduced later without changing the product relationship.
+- Movement history is immutable and auditable.
+- Failed adjustments leave both stock and movement table unchanged.
+- No update or delete operations are required; movements are never modified.
+- Zero adjustments are rejected and produce no movement.
+
+This is distinct from DEC-014 (stock scoped by product/location) in that it
+provides the audit trail. DEC-014 and DEC-015 are complementary.
 
 ## Initial domain-boundary guidance
 

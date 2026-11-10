@@ -56,7 +56,8 @@ Establish Inventory as an independent business module that owns stock quantities
 - `docker compose run --rm --no-deps cli php artisan db:table inventories`
 
 ### Results
-- Inventory focused suite: 16 passed, 46 assertions.
+- Inventory focused suite: 30 passed, 105 assertions.
+- All Inventory tests plus existing InventoryFoundationTest: 46 tests.
 - Full suite: 73 passed, 3 failed, 213 assertions.
 - Pint: passed (initial targeted run fixed formatting in four generated files).
 - `create_inventories_table`: Ran in batch 4.

@@ -153,7 +153,7 @@ test('stock adjustment increases quantity', function () {
 
     $updated = app(AdjustsStock::class)->handle(
         $inventory,
-        new AdjustStockData(quantityDelta: 15),
+        new AdjustStockData(quantityDelta: 15, reason: 'Stock received'),
     );
 
     expect($updated->quantity)->toBe(25);
@@ -169,7 +169,7 @@ test('stock adjustment decreases quantity', function () {
 
     $updated = app(AdjustsStock::class)->handle(
         $inventory,
-        new AdjustStockData(quantityDelta: -8),
+        new AdjustStockData(quantityDelta: -8, reason: 'Customer order'),
     );
 
     expect($updated->quantity)->toBe(12);
@@ -185,7 +185,7 @@ test('stock adjustment allows quantity to reach zero', function () {
 
     $updated = app(AdjustsStock::class)->handle(
         $inventory,
-        new AdjustStockData(quantityDelta: -4),
+        new AdjustStockData(quantityDelta: -4, reason: 'Stock write-off'),
     );
 
     expect($updated->quantity)->toBe(0);
@@ -196,7 +196,7 @@ test('stock adjustment rejects adjustments that would make stock negative', func
 
     expect(fn () => app(AdjustsStock::class)->handle(
         $inventory,
-        new AdjustStockData(quantityDelta: -4),
+        new AdjustStockData(quantityDelta: -4, reason: 'Stock write-off'),
     ))->toThrow(ValidationException::class);
 
     expect($inventory->fresh()->quantity)->toBe(3);
@@ -207,7 +207,7 @@ test('stock adjustment rejects a zero adjustment', function () {
 
     expect(fn () => app(AdjustsStock::class)->handle(
         $inventory,
-        new AdjustStockData(quantityDelta: 0),
+        new AdjustStockData(quantityDelta: 0, reason: 'No change'),
     ))->toThrow(ValidationException::class);
 
     expect($inventory->fresh()->quantity)->toBe(5);
@@ -226,7 +226,7 @@ test('stock adjustments are isolated per location', function () {
 
     app(AdjustsStock::class)->handle(
         $defaultInventory,
-        new AdjustStockData(quantityDelta: -5),
+        new AdjustStockData(quantityDelta: -5, reason: 'Customer order'),
     );
 
     expect($defaultInventory->fresh()->quantity)->toBe(5)

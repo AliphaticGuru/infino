@@ -32,9 +32,23 @@ Category:
 - `Data/UpdateCategoryData.php`
 - `Support/UniqueSlug.php`
 
-The service provider binds product and category contracts to their actions.
+Inventory:
+- `Models/Inventory.php`
+- `Models/StockMovement.php`
+- `Database/Factories/InventoryFactory.php`
+- `Database/Factories/StockMovementFactory.php`
+- `Database/Migrations/create_inventories_table.php`
+- `Database/Migrations/create_stock_movements_table.php`
+- `Actions/CreateInventory.php`
+- `Actions/AdjustStock.php`
+- `Contracts/CreatesInventory.php`
+- `Contracts/AdjustsStock.php`
+- `Data/CreateInventoryData.php`
+- `Data/AdjustStockData.php`
 
-The module manifest declares a dependency on Core.
+The service provider binds product, category and inventory contracts to their actions.
+
+The module manifest declares dependencies on Core and Catalog (Inventory).
 
 ## Current product data
 

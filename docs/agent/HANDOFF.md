@@ -48,8 +48,8 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Migrations: products (batch 2); categories and category_product (batch 3);
   inventories (batch 4).
 - Catalog focused suite: **26 passed, 86 assertions**.
-- Inventory focused suite: **16 passed, 46 assertions**.
-- Full suite: **73 passed, 3 failed (213 assertions)**.
+- Inventory focused suite: **30 passed, 105 assertions**.
+- Full suite: **87 passed, 3 failed (272 assertions)**.
 
 ## Known failures unrelated to Inventory
 
@@ -75,21 +75,19 @@ repository still fails them. Do not modify them unless explicitly authorized.
 
 ## Immediate task sequence
 
-### Option A — Inventory movement history
-
-- Define an append-only movement model and migration.
-- Record the previous/resulting quantity, delta and a reason or reference.
-- Have `AdjustStock` write a movement within the same transaction.
-- Add focused tests for movement creation, negative rejection not writing a
-  movement, and per-location isolation.
-- Keep reservations and reporting out of scope.
-
 ### Option B — Catalog product retrieval and update
 
 - Define the smallest useful Catalog read operations (find by ID and slug).
 - Define updateable product fields and slug behavior on rename.
 - Reuse `Catalog\Support\UniqueSlug`.
-- Add focused tests and keep category behavior unchanged.
+- Add focused tests and keep Inventory behavior unchanged.
+
+### Option A continuation — Stock movement refinements (if prioritized later)
+
+- Define read operations and reporting for movement history.
+- Add location entity and management.
+- Implement stock reservations and release logic.
+- Keep adjustments and reservations within separate transactions where appropriate.
 
 ### Verification and shared memory
 
