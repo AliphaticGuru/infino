@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-10
-**Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `a349034` — `feat(catalog): implemented catalog product retrieval & update`
+**Last inspected:** 2026-11-09  
+**Current branch at inspection:** `feature/catalog`  
+**Latest commit at inspection:** `fd5f126` — `feat(catalog): All test case fixed`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -44,7 +44,7 @@ Observed files include:
 - `Core/Data/Data.php`
 - `Core/module.json`
 
-Core is declared as a dependency of Identity and Catalog.
+Core is declared as a dependency of Identity, Catalog and Inventory.
 
 ### Identity
 **Status:** Foundation committed; current working-tree changes need verification.
@@ -116,6 +116,65 @@ Remaining gaps:
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
 
+### Inventory
+**Status:** Stock foundation and append-only movement history complete and verified with focused tests.
+
+Observed files include:
+- `InventoryServiceProvider`
+- `module.json` (depends on Core and Catalog)
+- `Inventory` and `StockMovement` models
+- `InventoryFactory` and `StockMovementFactory`
+- `create_inventories_table.php` and `create_stock_movements_table.php` migrations
+- `CreateInventory` and `AdjustStock` actions
+- `CreatesInventory` and `AdjustsStock` contracts
+- `CreateInventoryData` and `AdjustStockData`
+- `StockMovementReadService` (read-only retrieval and reporting)
+
+The `inventories` table represents a stock record per product and location:
+- `id`
+- `product_id` foreign key to Catalog `products` with cascading delete
+- `location` (default `default`)
+- `quantity` integer (default `0`)
+- timestamps
+- unique `(product_id, location)`
+
+The `stock_movements` table is append-only:
+- `id`
+- `product_id` foreign key to Catalog `products` with cascading delete
+- `location` (snapshot at adjustment time)
+- `quantity_delta` signed integer
+- `resulting_quantity` integer
+- `reason` string
+- nullable `reference` string
+- `created_at` only; no `updated_at`
+- indexes on `(product_id, location)` and `(product_id, created_at)`
+
+Verified on 2026-11-09:
+- The Inventory module is discovered and its provider is registered.
+- `CreatesInventory` and `AdjustsStock` resolve to their actions.
+- Inventory and stock movement factories resolve and persist records.
+- Initial stock creation validates product existence, location, and non-negative quantity.
+- A product may have multiple inventory records, one per location; duplicate product/location pairs are rejected.
+- Stock adjustments increase and decrease quantity atomically inside a transaction with `lockForUpdate`.
+- Adjustments that would produce negative stock, and zero adjustments, are rejected.
+- Adjustments are isolated per location.
+- Every successful adjustment writes a movement with the product, location, signed delta, resulting quantity, reason, optional reference and creation timestamp in the same transaction.
+- Failed, rejected and zero adjustments write no movement.
+- Movement persistence failure rolls back the stock update; outer transaction rollback reverts both.
+- Movement records have no update or delete operations and no updated timestamp.
+- Deleting a product cascades to its inventory records and stock movements.
+- Movement history is retrievable through `StockMovementReadService` with pagination (default 20, newest first), product filtering, reason filtering and inclusive date-range filtering.
+- Per-product movement history reuses the same paginated query.
+- Daily summaries derive increase and decrease totals from recorded movements and accept optional product and date-range filters.
+- Read operations never modify inventory or movement records.
+- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions), `StockMovementTest.php` (14 tests, 59 assertions) and `StockMovementReadTest.php` (14 tests, 42 assertions).
+
+Remaining gaps:
+- Stock reservations, release, low-stock thresholds and location management actions are not implemented.
+- Inventory assumes Catalog products without variants; variant-level inventory remains open.
+- Reporting is daily-grouped only; no per-location or per-reason breakdown exists.
+- No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
+
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
 
@@ -132,7 +191,6 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-<<<<<<< develop
 The working tree was not clean.
 
 Tracked changes included:
@@ -147,15 +205,6 @@ Untracked files included:
 - `src/tests/Feature/Catalog/`.
 
 The branch was `feature/catalog`. The latest commit was `7cdb745`.
-=======
-The repository was inspected on 2026-11-10.
-
-- Current branch: `feature/catalog`.
-- Latest commit: `a349034` — `feat(catalog): implemented catalog product retrieval & update`.
-- The working tree contained the uncommitted product publication lifecycle implementation.
-
-The Inventory commits (`2e71c91`, `24dca64`, `4532690`) are on `feature/inventory` and are not part of this branch. Inventory module code and tests are therefore absent here.
->>>>>>> local
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -169,7 +218,7 @@ Fix: the healthcheck now reads the container's own variables with `pg_isready -U
 
 ## 7. Test status
 
-Baseline and post-change full-suite results were captured on 2026-11-09 using:
+Baseline and post-change full-suite results were captured on 2026-11-09 and 2026-11-10 using:
 
 ```bash
 docker compose run --rm --no-deps cli php artisan test --compact
@@ -177,20 +226,7 @@ docker compose run --rm --no-deps cli php artisan test --compact
 
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
-<<<<<<< develop
 - Catalog focused suite: 26 passed, 86 assertions.
-=======
-- After Catalog product retrieval/update: 62 passed, 3 failed (172 assertions) — superseded by the lifecycle run below.
-- After Catalog product publication lifecycle: 93 passed, 3 failed (253 assertions).
-- Catalog focused suite: 62 passed, 172 assertions.
-- `ProductPublicationLifecycleTest.php`: 21 passed, 46 assertions.
-- PHPStan level 7 on `app/Modules/Catalog`: no errors.
-- PostgreSQL: `z_add_status_to_products_table` applied; `status` is non-null with default `draft`; existing rows were backfilled to `draft`.
-
-Results from `feature/inventory` (Inventory module is not present on this branch):
-- Inventory foundation, movement history and movement read/reporting were verified there.
-- Full suite on that branch reached 101 passed, 3 failed (314 assertions) before Catalog retrieval/update.
->>>>>>> local
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -215,3 +251,5 @@ Never report tests as passing unless the relevant command was executed and its r
 4. Expose the product lifecycle through an authorised delivery layer when a UI milestone begins.
 >>>>>>> local
 5. Define required first-release product fields and variant direction before expanding the schema.
+6. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
+7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.

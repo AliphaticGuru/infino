@@ -41,6 +41,7 @@ PHP 8.5.7 has been verified in the CLI container. Recheck all versions when chan
 
 Shared project context is maintained in repository documentation so different agents can use the same source of truth.
 
+<<<<<<< HEAD
 ### DEC-017 — Product publication lifecycle is separate from operational availability
 **Status:** Confirmed
 **Date:** 2026-11-10
@@ -86,6 +87,45 @@ Consequences:
 Numbering note:
 DEC-014, DEC-015 and DEC-016 are recorded on `feature/inventory`. This decision
 uses DEC-017 to avoid duplicate IDs when the branches are integrated.
+=======
+### DEC-015 — Inventory stock movement history is append-only
+**Status:** Confirmed for the Inventory foundation
+
+Every successful stock adjustment records a StockMovement with the product,
+location, signed quantity delta, resulting quantity, reason, optional reference
+and creation timestamp. Movement records have no `updated_at` and are
+append-only — no update or delete operations are supported through normal
+application operations. Persistence of stock and movement happens in a single
+database transaction with row-level locking. A rejected or zero adjustment
+produces no movement.
+
+Consequences:
+- Movement history is immutable and auditable.
+- Failed adjustments leave both stock and movement table unchanged.
+- No update or delete operations are required; movements are never modified.
+- Zero adjustments are rejected and produce no movement.
+
+This is distinct from DEC-014 (stock scoped by product/location) in that it
+provides the audit trail. DEC-014 and DEC-015 are complementary.
+
+### DEC-016 — Stock movement reads and reporting are a read-only service
+**Status:** Confirmed for the Inventory foundation
+
+Stock movement retrieval and reporting live in
+`Inventory\Services\StockMovementReadService`, not in Actions. The service is
+read-only: it never creates, updates or deletes inventory or movement records,
+and it performs no writes of any kind. Reporting summaries are derived from the
+recorded movement history rather than from stored aggregates, so they cannot
+drift from the audit trail.
+
+Consequences:
+- Pagination, product/reason/date filtering and daily summaries share one
+  filtered query builder inside the service.
+- Summaries distinguish positive and negative deltas from the movements table.
+- No HTTP endpoints or UI are provided yet; the service is an internal module
+  API for future Filament/API layers.
+- Movement history remains append-only; reads do not acquire write locks.
+>>>>>>> feature/inventory
 
 ## Initial domain-boundary guidance
 

@@ -1,0 +1,13 @@
+{
+    "name": "Inventory",
+    "description": "Stock management and inventory operations.",
+    "version": "1.0.0",
+    "enabled": true,
+    "providers": [
+        "App\\Modules\\Inventory\\Providers\\InventoryServiceProvider"
+    ],
+    "dependencies": [
+        "Core",
+        "Catalog"
+    ]
+}
