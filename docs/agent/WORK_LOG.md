@@ -2,6 +2,61 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-10 — Catalog product-category assignment implemented
+
+### Objective
+Implement assign, remove and synchronise operations for product-category assignments within the Catalog module.
+
+### Work performed
+- Read the mandatory documentation, Catalog specification, existing Product/Category models and the `category_product` pivot.
+- Confirmed the pivot uses a composite primary key on `(category_id, product_id)` with cascading deletes.
+- Added `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts and their actions.
+- Assign validates category existence and attaches without detaching existing assignments; duplicate requests are idempotent.
+- Remove detaches requested categories and safely ignores unassigned or nonexistent IDs.
+- Sync validates all requested categories, then attaches missing and removes omitted assignments; an empty array clears all.
+- All operations run in a transaction and resolve the product from the database, raising `ModelNotFoundException` for deleted or unpersisted products.
+- Invalid or nonexistent category IDs raise `ValidationException` before any change.
+- Registered the three contracts in `CatalogServiceProvider`.
+- Added `ProductCategoryAssignmentTest.php` with 18 tests covering the required behaviours.
+- Ran Pint, PHPStan, the Catalog suite and the full suite.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Contracts/AssignsProductCategories.php`
+- `src/app/Modules/Catalog/Contracts/RemovesProductCategories.php`
+- `src/app/Modules/Catalog/Contracts/SyncsProductCategories.php`
+- `src/app/Modules/Catalog/Actions/AssignProductCategories.php`
+- `src/app/Modules/Catalog/Actions/RemoveProductCategories.php`
+- `src/app/Modules/Catalog/Actions/SyncProductCategories.php`
+- `src/tests/Feature/Catalog/ProductCategoryAssignmentTest.php`
+
+Modified:
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+
+### Tests and verification
+- `ProductCategoryAssignmentTest.php`: 18 passed (52 assertions).
+- Catalog focused suite: 80 passed (224 assertions).
+- Full suite: 155 passed, 3 failed (452 assertions).
+- Pint: passed.
+- PHPStan on `app/Modules/Catalog`: no errors.
+
+### Results
+- Products can be assigned, unassigned and synchronised with categories through module-owned actions.
+- Existing assignments are preserved by assign and remove; sync replaces the set.
+- Validation failures leave assignments unchanged.
+
+### Outstanding issues
+- Category retrieval/deletion actions remain unimplemented.
+- No UI, API or Filament layer was added.
+- The three pre-existing Identity/post-create failures remain.
+
+### Next action
+Add category retrieval and deletion actions, or expose product-category management through an authorised delivery layer.
+
 ## 2026-11-10 — Catalog product publication lifecycle implemented
 
 ### Objective

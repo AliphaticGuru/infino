@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product and category foundations complete; retrieval, update and publication lifecycle verified
+**Status:** Product and category foundations complete; retrieval, update, publication lifecycle and product-category assignment verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -16,10 +16,16 @@ Product:
 - `Actions/FindProduct.php`
 - `Actions/UpdateProduct.php`
 - `Actions/TransitionProductStatus.php`
+- `Actions/AssignProductCategories.php`
+- `Actions/RemoveProductCategories.php`
+- `Actions/SyncProductCategories.php`
 - `Contracts/CreatesProducts.php`
 - `Contracts/FindsProducts.php`
 - `Contracts/UpdatesProducts.php`
 - `Contracts/TransitionsProductStatus.php`
+- `Contracts/AssignsProductCategories.php`
+- `Contracts/RemovesProductCategories.php`
+- `Contracts/SyncsProductCategories.php`
 - `Data/CreateProductData.php`
 - `Data/UpdateProductData.php`
 - `Models/Product.php`
@@ -156,6 +162,47 @@ Verified on 2026-11-10 with `src/tests/Feature/Catalog/ProductPublicationLifecyc
 - Independence of `is_active` from publication status.
 - Product updates leaving status unchanged.
 
+## Product-category assignment
+
+The `category_product` pivot stores `category_id` and `product_id` with a
+composite primary key and cascading deletes from both sides.
+
+`AssignsProductCategories` / `AssignProductCategories`:
+- Accepts a product and one or more category IDs.
+- Validates every requested category exists.
+- Attaches categories without removing existing assignments.
+- Duplicate requests are idempotent; the pivot primary key prevents duplicates.
+
+`RemovesProductCategories` / `RemoveProductCategories`:
+- Accepts a product and one or more category IDs.
+- Detaches the requested categories and preserves all others.
+- IDs that are not assigned (including nonexistent categories) are ignored safely.
+
+`SyncsProductCategories` / `SyncProductCategories`:
+- Accepts a product and an array of category IDs.
+- Validates every requested category before modifying assignments.
+- Attaches missing categories and removes assignments not in the list.
+- An empty array removes all category assignments.
+
+Rules:
+- All three operations run in a database transaction and resolve the product
+  from the database, so deleted or unpersisted products raise
+  `ModelNotFoundException`.
+- Invalid or nonexistent category IDs raise `ValidationException` and leave
+  assignments unchanged.
+- Category assignment is independent of product publication status and
+  `is_active`.
+
+Verified on 2026-11-10 with `src/tests/Feature/Catalog/ProductCategoryAssignmentTest.php`:
+- Contract resolution through the module provider.
+- Single and multiple category assignment.
+- Existing assignments preserved and duplicates prevented.
+- Selected detachment with unrelated assignments preserved.
+- Safe handling of unassigned and nonexistent category IDs on removal.
+- Sync replacing assignments and sync with an empty array.
+- Rejection of nonexistent and duplicate category IDs without partial changes.
+- `ModelNotFoundException` for deleted and unpersisted products.
+
 ## Current category data
 
 The `categories` migration defines:
@@ -212,9 +259,10 @@ These are not yet implemented or approved as final scope:
 6. ~~Are categories and product-category relationships supported?~~ Verified.
 7. ~~Can products be retrieved and updated?~~ Verified: find by ID/slug, partial updates and rename slug regeneration.
 8. ~~What does the product publication lifecycle require beyond `is_active`?~~ Verified: separate `status` enum with guarded transitions (DEC-017).
-9. What product fields are required for the first release?
-10. Are products variant-based from the beginning?
-11. Should category deletion be restricted while products are assigned?
+9. ~~How are products assigned to categories?~~ Verified: assign, remove and sync actions with validation (2026-11-10).
+10. What product fields are required for the first release?
+11. Are products variant-based from the beginning?
+12. Should category deletion be restricted while products are assigned?
 
 ## Acceptance criteria for the initial Catalog foundation
 
@@ -223,6 +271,7 @@ These are not yet implemented or approved as final scope:
 - Product and category actions persist the expected fields.
 - Product publication status defaults to draft and transitions are validated and tested.
 - Publication status is independent of `is_active` availability.
+- Product-category assignment, removal and synchronisation are validated and tested.
 - Slug uniqueness behavior is defined and tested.
 - Parent-child and product-category relationships are defined and tested.
 - Relevant Catalog tests pass.
