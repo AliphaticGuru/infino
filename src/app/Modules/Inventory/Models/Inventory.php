@@ -6,6 +6,7 @@ namespace App\Modules\Inventory\Models;
 
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Inventory\Database\Factories\InventoryFactory;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,8 +16,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $product_id
  * @property string $location
  * @property int $quantity
- * @property \Carbon\CarbonInterface|null $created_at
- * @property \Carbon\CarbonInterface|null $updated_at
+ * @property CarbonInterface|null $created_at
+ * @property CarbonInterface|null $updated_at
  * @property-read Product $product
  */
 final class Inventory extends Model

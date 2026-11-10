@@ -61,6 +61,24 @@ Consequences:
 This is distinct from DEC-014 (stock scoped by product/location) in that it
 provides the audit trail. DEC-014 and DEC-015 are complementary.
 
+### DEC-016 — Stock movement reads and reporting are a read-only service
+**Status:** Confirmed for the Inventory foundation
+
+Stock movement retrieval and reporting live in
+`Inventory\Services\StockMovementReadService`, not in Actions. The service is
+read-only: it never creates, updates or deletes inventory or movement records,
+and it performs no writes of any kind. Reporting summaries are derived from the
+recorded movement history rather than from stored aggregates, so they cannot
+drift from the audit trail.
+
+Consequences:
+- Pagination, product/reason/date filtering and daily summaries share one
+  filtered query builder inside the service.
+- Summaries distinguish positive and negative deltas from the movements table.
+- No HTTP endpoints or UI are provided yet; the service is an internal module
+  API for future Filament/API layers.
+- Movement history remains append-only; reads do not acquire write locks.
+
 ## Initial domain-boundary guidance
 
 These boundaries are architectural guidance to preserve during implementation. Refine them through explicit decisions when necessary.
