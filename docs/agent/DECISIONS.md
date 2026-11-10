@@ -41,7 +41,6 @@ PHP 8.5.7 has been verified in the CLI container. Recheck all versions when chan
 
 Shared project context is maintained in repository documentation so different agents can use the same source of truth.
 
-<<<<<<< HEAD
 ### DEC-017 — Product publication lifecycle is separate from operational availability
 **Status:** Confirmed
 **Date:** 2026-11-10
@@ -87,7 +86,7 @@ Consequences:
 Numbering note:
 DEC-014, DEC-015 and DEC-016 are recorded on `feature/inventory`. This decision
 uses DEC-017 to avoid duplicate IDs when the branches are integrated.
-=======
+
 ### DEC-015 — Inventory stock movement history is append-only
 **Status:** Confirmed for the Inventory foundation
 
@@ -125,7 +124,6 @@ Consequences:
 - No HTTP endpoints or UI are provided yet; the service is an internal module
   API for future Filament/API layers.
 - Movement history remains append-only; reads do not acquire write locks.
->>>>>>> feature/inventory
 
 ## Initial domain-boundary guidance
 

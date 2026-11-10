@@ -17,7 +17,9 @@ final class CategoryFactory extends Factory
 
     public function definition(): array
     {
-        $name = ucfirst(fake()->unique()->words(2, true));
+        /** @var array<int, string> $words */
+        $words = fake()->unique()->words(2);
+        $name = ucfirst(implode(' ', $words));
 
         return [
             'parent_id' => null,

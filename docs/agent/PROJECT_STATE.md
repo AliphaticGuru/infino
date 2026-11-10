@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-09  
-**Current branch at inspection:** `feature/catalog`  
-**Latest commit at inspection:** `fd5f126` — `feat(catalog): All test case fixed`
+**Last inspected:** 2026-11-10  
+**Current branch at inspection:** `develop` (merge of `feature/catalog` in progress)  
+**Latest commit at inspection:** `96f77dd` — `dev: merge conflict resolution 1`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -62,21 +62,13 @@ The current working tree includes changes to the Identity User model, Fortify ac
 Do not assume the current tests pass.
 
 ### Catalog
-<<<<<<< develop
-**Status:** Product and category foundations complete and verified with focused tests.
-=======
 **Status:** Product and category foundations complete; product retrieval/update and publication lifecycle verified with focused tests.
->>>>>>> local
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
-<<<<<<< develop
-- Product: `CreateProduct` action, `CreatesProducts` contract, `CreateProductData`, `Product` model, `ProductFactory`, `create_products_table.php` migration.
-=======
 - Product: `CreateProduct`, `FindProduct`, `UpdateProduct` and `TransitionProductStatus` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts` and `TransitionsProductStatus` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
->>>>>>> local
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory` and `UpdateCategory` actions, `CreatesCategories` and `UpdatesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
 - Shared slug helper: `Support/UniqueSlug.php`.
@@ -95,22 +87,20 @@ Verified on 2026-11-09:
 - Category updates cover rename slug generation, parent reassignment and rejection of self/descendant parents.
 - Focused tests: `ProductCreationTest.php` (9 tests, 28 assertions) and `CategoryFoundationTest.php` (17 tests, 58 assertions).
 
-Verified on 2026-11-10 (publication lifecycle):
+Verified on 2026-11-10 (retrieval/update and publication lifecycle):
+- Products can be retrieved by ID and by slug through `FindsProducts`; unknown values throw `ModelNotFoundException`.
+- `UpdateProduct` supports partial updates of name, description and active status; omitted fields keep their stored values.
+- Renaming regenerates the slug through `Support\UniqueSlug`, preserving an unchanged name's existing slug and suffixing collisions.
 - Products carry a `status` backed enum with `draft`, `published` and `archived`.
 - New products default to draft; existing rows were backfilled to draft by the migration.
 - Draft products can be published or archived; published products can be unpublished or archived.
 - Archived products can only return to draft through `restore`, then be published.
 - Invalid transitions raise `ValidationException`; deleted products raise `ModelNotFoundException`.
 - Lifecycle transitions preserve name, slug, description and `is_active`.
-- `is_active` remains independent of publication status.
-- `UpdateProduct` does not change the publication status.
-- Focused tests: `ProductPublicationLifecycleTest.php` (21 tests, 46 assertions).
+- `is_active` remains independent of publication status, and `UpdateProduct` does not change publication status.
+- Focused tests: `ProductRetrievalAndUpdateTest.php` (15 tests, 40 assertions) and `ProductPublicationLifecycleTest.php` (21 tests, 46 assertions).
 
 Remaining gaps:
-<<<<<<< develop
-- Product update, retrieval and publication lifecycle behavior are not implemented.
-=======
->>>>>>> local
 - Category retrieval/deletion actions and product-category assignment actions are not implemented.
 - No publication lifecycle UI, API, Filament resource or Livewire component exists.
 - Required first-release fields and variant support remain undecided.
@@ -191,20 +181,13 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The working tree was not clean.
+The repository was inspected on 2026-11-10 during a merge of `feature/catalog` into `develop`.
 
-Tracked changes included:
-- `compose.yaml` healthcheck fix.
-- Catalog `CreateProduct` slug handling and `Product` factory resolution.
-- Identity User model, factory and login route changes.
-- Root `src/routes/web.php` changes.
-
-Untracked files included:
-- Root `AGENTS.md`, `CLAUDE.md`, and `docs/`.
-- `src/app/Livewire/Pages/` and the post-create Blade view.
-- `src/tests/Feature/Catalog/`.
-
-The branch was `feature/catalog`. The latest commit was `7cdb745`.
+- Current branch: `develop`.
+- Pre-merge commit: `96f77dd` — `dev: merge conflict resolution 1`.
+- `feature/catalog` at `a349034` adds product retrieval/update on top of the Catalog foundation.
+- `develop` already contained the Inventory foundation, stock movement history/read services and the Catalog publication lifecycle.
+- The merge is in progress and is not yet committed. Resolve conflicts, then verify before committing.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -226,7 +209,18 @@ docker compose run --rm --no-deps cli php artisan test --compact
 
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
-- Catalog focused suite: 26 passed, 86 assertions.
+- After completing the Inventory foundation: 87 passed, 3 failed (272 assertions).
+- After stock movement history: 87 passed, 3 failed (272 assertions).
+- After stock movement read/reporting: 101 passed, 3 failed (314 assertions).
+- After Catalog product retrieval/update: 116 passed, 3 failed (354 assertions).
+- After merging `feature/catalog` into `develop` (Catalog retrieval/update + publication lifecycle, Inventory foundation/history/read): **137 passed, 3 failed (400 assertions)**.
+- Catalog focused suite: 62 passed (172 assertions).
+- Inventory focused suite: 44 passed (147 assertions).
+- Combined Catalog + Inventory focused suite: 106 passed (319 assertions).
+- `ProductPublicationLifecycleTest.php`: 21 passed (46 assertions).
+- `StockMovementReadTest.php`: 14 passed (42 assertions).
+- PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
+- Full-project PHPStan: 23 pre-existing errors outside Catalog and Inventory.
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -243,13 +237,8 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-<<<<<<< develop
-3. Add Catalog product retrieval and update behavior.
-4. Add product-category assignment actions if the product workflows require them.
-=======
 3. Add product-category assignment actions if the product workflows require them.
 4. Expose the product lifecycle through an authorised delivery layer when a UI milestone begins.
->>>>>>> local
 5. Define required first-release product fields and variant direction before expanding the schema.
 6. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
 7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.

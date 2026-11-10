@@ -18,7 +18,9 @@ final class ProductFactory extends Factory
 
     public function definition(): array
     {
-        $name = fake()->words(3, true);
+        /** @var array<int, string> $words */
+        $words = fake()->words(3);
+        $name = implode(' ', $words);
 
         return [
 
@@ -33,9 +35,6 @@ final class ProductFactory extends Factory
             'status' => ProductStatus::Draft,
         ];
     }
-<<<<<<< develop
-}
-=======
 
     public function published(): static
     {
@@ -51,4 +50,3 @@ final class ProductFactory extends Factory
         ]);
     }
 }
->>>>>>> local

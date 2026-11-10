@@ -4,23 +4,19 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Providers;
 
-use App\Modules\Core\Providers\BaseModuleServiceProvider;
 use App\Modules\Catalog\Actions\CreateCategory;
 use App\Modules\Catalog\Actions\CreateProduct;
-<<<<<<< develop
-=======
 use App\Modules\Catalog\Actions\FindProduct;
 use App\Modules\Catalog\Actions\TransitionProductStatus;
->>>>>>> local
 use App\Modules\Catalog\Actions\UpdateCategory;
+use App\Modules\Catalog\Actions\UpdateProduct;
 use App\Modules\Catalog\Contracts\CreatesCategories;
 use App\Modules\Catalog\Contracts\CreatesProducts;
-<<<<<<< develop
-=======
 use App\Modules\Catalog\Contracts\FindsProducts;
 use App\Modules\Catalog\Contracts\TransitionsProductStatus;
->>>>>>> local
 use App\Modules\Catalog\Contracts\UpdatesCategories;
+use App\Modules\Catalog\Contracts\UpdatesProducts;
+use App\Modules\Core\Providers\BaseModuleServiceProvider;
 
 final class CatalogServiceProvider extends BaseModuleServiceProvider
 {
@@ -40,8 +36,6 @@ final class CatalogServiceProvider extends BaseModuleServiceProvider
             UpdatesCategories::class,
             UpdateCategory::class,
         );
-<<<<<<< develop
-=======
 
         $this->app->bind(
             FindsProducts::class,
@@ -57,6 +51,5 @@ final class CatalogServiceProvider extends BaseModuleServiceProvider
             TransitionsProductStatus::class,
             TransitionProductStatus::class,
         );
->>>>>>> local
     }
 }

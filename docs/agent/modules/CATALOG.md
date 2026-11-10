@@ -1,10 +1,6 @@
 # Catalog Module Specification
 
-<<<<<<< develop
-**Status:** Product and category foundations complete and verified
-=======
 **Status:** Product and category foundations complete; retrieval, update and publication lifecycle verified
->>>>>>> local
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -17,9 +13,6 @@ It should not own inventory quantities, cart state, order lifecycle or payment t
 
 Product:
 - `Actions/CreateProduct.php`
-<<<<<<< develop
-- `Contracts/CreatesProducts.php`
-=======
 - `Actions/FindProduct.php`
 - `Actions/UpdateProduct.php`
 - `Actions/TransitionProductStatus.php`
@@ -27,8 +20,8 @@ Product:
 - `Contracts/FindsProducts.php`
 - `Contracts/UpdatesProducts.php`
 - `Contracts/TransitionsProductStatus.php`
->>>>>>> local
 - `Data/CreateProductData.php`
+- `Data/UpdateProductData.php`
 - `Models/Product.php`
 - `Support/ProductStatus.php`
 - `Database/Factories/ProductFactory.php`
@@ -87,7 +80,7 @@ The action currently:
 - Accepts `CreateProductData`.
 - Validates a required string name of at most 255 characters.
 - Accepts an optional nullable string description.
-- Generates a collision-safe slug from the product name (`name`, `name-2`, `name-3`, ...).
+- Generates a collision-safe slug from the product name via `Support\UniqueSlug` (`name`, `name-2`, `name-3`, ...).
 - Falls back to the slug `product` when the name has no slug characters.
 - Creates an active product with `draft` publication status.
 - Returns the created Product model.
@@ -100,8 +93,6 @@ Verified on 2026-11-09 with `src/tests/Feature/Catalog/ProductCreationTest.php`:
 - Duplicate names receive unique slugs.
 - Validation rejects empty and over-length names.
 
-<<<<<<< develop
-=======
 ## Product retrieval and update
 
 Retrieval (`FindsProducts` / `FindProduct`):
@@ -165,7 +156,6 @@ Verified on 2026-11-10 with `src/tests/Feature/Catalog/ProductPublicationLifecyc
 - Independence of `is_active` from publication status.
 - Product updates leaving status unchanged.
 
->>>>>>> local
 ## Current category data
 
 The `categories` migration defines:
@@ -220,17 +210,11 @@ These are not yet implemented or approved as final scope:
 4. ~~Product creation validation?~~ Name is required, string and at most 255 characters; description is optional.
 5. ~~How should duplicate slugs be handled?~~ Duplicate names receive numeric suffixes.
 6. ~~Are categories and product-category relationships supported?~~ Verified.
-<<<<<<< develop
-7. What product fields are required for the first release?
-8. Are products variant-based from the beginning?
-9. Should category deletion be restricted while products are assigned?
-=======
 7. ~~Can products be retrieved and updated?~~ Verified: find by ID/slug, partial updates and rename slug regeneration.
 8. ~~What does the product publication lifecycle require beyond `is_active`?~~ Verified: separate `status` enum with guarded transitions (DEC-017).
 9. What product fields are required for the first release?
 10. Are products variant-based from the beginning?
 11. Should category deletion be restricted while products are assigned?
->>>>>>> local
 
 ## Acceptance criteria for the initial Catalog foundation
 

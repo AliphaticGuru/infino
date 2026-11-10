@@ -5,17 +5,12 @@ declare(strict_types=1);
 namespace App\Modules\Catalog\Models;
 
 use App\Modules\Catalog\Database\Factories\ProductFactory;
-<<<<<<< develop
-=======
 use App\Modules\Catalog\Support\ProductStatus;
 use Carbon\CarbonInterface;
->>>>>>> local
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-<<<<<<< develop
-=======
 /**
  * @property int $id
  * @property string $name
@@ -26,7 +21,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  */
->>>>>>> local
 final class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
@@ -34,8 +28,6 @@ final class Product extends Model
 
     protected $guarded = [];
 
-<<<<<<< develop
-=======
     protected function casts(): array
     {
         return [
@@ -44,12 +36,14 @@ final class Product extends Model
         ];
     }
 
->>>>>>> local
     protected static function newFactory(): ProductFactory
     {
         return ProductFactory::new();
     }
 
+    /**
+     * @return BelongsToMany<Category, $this>
+     */
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class);

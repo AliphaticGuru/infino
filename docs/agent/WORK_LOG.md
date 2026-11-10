@@ -2,9 +2,6 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
-<<<<<<< HEAD
-<<<<<<< develop
-=======
 ## 2026-11-10 — Catalog product publication lifecycle implemented
 
 ### Objective
@@ -127,8 +124,6 @@ Modified:
 ### Next action
 Define product publication lifecycle behavior, or add product-category assignment actions.
 
-=======
->>>>>>> feature/inventory
 ## 2026-11-10 — Inventory stock movement read & reporting implemented
 
 ### Objective
@@ -289,10 +284,6 @@ Establish Inventory as an independent business module that owns stock quantities
 ### Next action
 Define and implement stock movement history for auditability, or continue Catalog product retrieval and update behavior.
 
-<<<<<<< HEAD
->>>>>>> local
-=======
->>>>>>> feature/inventory
 ## 2026-11-09 — Catalog category foundation implemented
 
 ### Objective

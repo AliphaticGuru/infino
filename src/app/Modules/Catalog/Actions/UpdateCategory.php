@@ -33,7 +33,7 @@ final class UpdateCategory implements UpdatesCategories
         $parentId = $validated['parent_id'] ?? null;
 
         if ($parentId !== null) {
-            $parent = Category::findOrFail($parentId);
+            $parent = Category::query()->whereKey($parentId)->firstOrFail();
 
             if ($parent->is($category) || $parent->isDescendantOf($category)) {
                 throw ValidationException::withMessages([

@@ -49,11 +49,7 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-<<<<<<< develop
-**Status:** In progress — product and category foundations complete
-=======
 **Status:** In progress — product/category foundations, product retrieval/update and publication lifecycle complete
->>>>>>> local
 
 Suggested sequence:
 1. ~~Verify Catalog module registration.~~ Complete.
@@ -61,13 +57,8 @@ Suggested sequence:
 3. ~~Verify Product model and factory.~~ Complete.
 4. ~~Define product creation validation.~~ Complete.
 5. ~~Add product creation tests.~~ Complete.
-<<<<<<< develop
-6. Add product update and retrieval behavior.
-7. Define product publication/status behavior.
-=======
 6. ~~Add product update and retrieval behavior.~~ Complete: find by ID/slug, partial updates and rename slug regeneration verified.
 7. ~~Define product publication/status behavior.~~ Complete: draft/published/archived enum with guarded transitions (DEC-017).
->>>>>>> local
 8. ~~Add categories and category relationships.~~ Complete; product-category pivot and parent-child hierarchy verified.
 9. Specify brands, attributes and variants before implementation.
 10. Integrate the administrative workflow.
