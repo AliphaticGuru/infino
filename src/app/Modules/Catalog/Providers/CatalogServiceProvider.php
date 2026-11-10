@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Providers;
 
-use App\Modules\Core\Providers\BaseModuleServiceProvider;
 use App\Modules\Catalog\Actions\CreateCategory;
 use App\Modules\Catalog\Actions\CreateProduct;
+use App\Modules\Catalog\Actions\FindProduct;
 use App\Modules\Catalog\Actions\UpdateCategory;
+use App\Modules\Catalog\Actions\UpdateProduct;
 use App\Modules\Catalog\Contracts\CreatesCategories;
 use App\Modules\Catalog\Contracts\CreatesProducts;
+use App\Modules\Catalog\Contracts\FindsProducts;
 use App\Modules\Catalog\Contracts\UpdatesCategories;
+use App\Modules\Catalog\Contracts\UpdatesProducts;
+use App\Modules\Core\Providers\BaseModuleServiceProvider;
 
 final class CatalogServiceProvider extends BaseModuleServiceProvider
 {
@@ -29,6 +33,16 @@ final class CatalogServiceProvider extends BaseModuleServiceProvider
         $this->app->bind(
             UpdatesCategories::class,
             UpdateCategory::class,
+        );
+
+        $this->app->bind(
+            FindsProducts::class,
+            FindProduct::class,
+        );
+
+        $this->app->bind(
+            UpdatesProducts::class,
+            UpdateProduct::class,
         );
     }
 }

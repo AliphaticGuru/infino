@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product and category foundations complete and verified
+**Status:** Product and category foundations complete; product retrieval and update verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -13,8 +13,13 @@ It should not own inventory quantities, cart state, order lifecycle or payment t
 
 Product:
 - `Actions/CreateProduct.php`
+- `Actions/FindProduct.php`
+- `Actions/UpdateProduct.php`
 - `Contracts/CreatesProducts.php`
+- `Contracts/FindsProducts.php`
+- `Contracts/UpdatesProducts.php`
 - `Data/CreateProductData.php`
+- `Data/UpdateProductData.php`
 - `Models/Product.php`
 - `Database/Factories/ProductFactory.php`
 - `Database/Migrations/create_products_table.php`
@@ -50,7 +55,7 @@ The action currently:
 - Accepts `CreateProductData`.
 - Validates a required string name of at most 255 characters.
 - Accepts an optional nullable string description.
-- Generates a collision-safe slug from the product name (`name`, `name-2`, `name-3`, ...).
+- Generates a collision-safe slug from the product name via `Support\UniqueSlug` (`name`, `name-2`, `name-3`, ...).
 - Falls back to the slug `product` when the name has no slug characters.
 - Creates an active product.
 - Returns the created Product model.
@@ -62,6 +67,32 @@ Verified on 2026-11-09 with `src/tests/Feature/Catalog/ProductCreationTest.php`:
 - Product creation, persistence and optional description handling.
 - Duplicate names receive unique slugs.
 - Validation rejects empty and over-length names.
+
+## Product retrieval and update
+
+Retrieval (`FindsProducts` / `FindProduct`):
+- `find(int $id)` returns the product or throws `ModelNotFoundException`.
+- `findBySlug(string $slug)` returns the product or throws `ModelNotFoundException`.
+
+Update (`UpdatesProducts` / `UpdateProduct` / `UpdateProductData`):
+- All fields are optional, so partial updates are supported.
+- Omitted `name`, `description` and `isActive` keep their stored values.
+- Supplied names are validated as required, string and at most 255 characters.
+- A name change regenerates a collision-safe slug via `Support\UniqueSlug`,
+  ignoring the product's own row; an unchanged name keeps the existing slug.
+- Description and active status update independently of the name.
+
+`Product` casts `is_active` to boolean and exposes typed property and relation
+annotations for static analysis.
+
+Verified on 2026-11-10 with `src/tests/Feature/Catalog/ProductRetrievalAndUpdateTest.php`:
+- Contract resolution through the module provider.
+- Retrieval by ID and by slug.
+- `ModelNotFoundException` for unknown IDs and slugs.
+- Full and partial updates, including no-op updates.
+- Omitted fields preserved; other products unaffected.
+- Rename slug regeneration, unchanged-name slug preservation and collision suffixes.
+- Validation rejects empty and over-length names without modifying the product.
 
 ## Current category data
 
@@ -118,9 +149,11 @@ These are not yet implemented or approved as final scope:
 4. ~~Product creation validation?~~ Name is required, string and at most 255 characters; description is optional.
 5. ~~How should duplicate slugs be handled?~~ Duplicate names receive numeric suffixes.
 6. ~~Are categories and product-category relationships supported?~~ Verified.
-7. What product fields are required for the first release?
-8. Are products variant-based from the beginning?
-9. Should category deletion be restricted while products are assigned?
+7. ~~Can products be retrieved and updated?~~ Verified: find by ID/slug, partial updates and rename slug regeneration.
+8. What product fields are required for the first release?
+9. Are products variant-based from the beginning?
+10. Should category deletion be restricted while products are assigned?
+11. What does the product publication lifecycle require beyond `is_active`?
 
 ## Acceptance criteria for the initial Catalog foundation
 

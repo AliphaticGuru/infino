@@ -62,12 +62,12 @@ The current working tree includes changes to the Identity User model, Fortify ac
 Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product and category foundations complete and verified with focused tests.
+**Status:** Product and category foundations complete; product retrieval and update verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
-- Product: `CreateProduct` action, `CreatesProducts` contract, `CreateProductData`, `Product` model, `ProductFactory`, `create_products_table.php` migration.
+- Product: `CreateProduct`, `FindProduct` and `UpdateProduct` actions, `CreatesProducts`, `FindsProducts` and `UpdatesProducts` contracts, `CreateProductData` and `UpdateProductData`, `Product` model, `ProductFactory`, `create_products_table.php` migration.
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory` and `UpdateCategory` actions, `CreatesCategories` and `UpdatesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
 - Shared slug helper: `Support/UniqueSlug.php`.
@@ -84,10 +84,17 @@ Verified on 2026-11-09:
 - Categories support nullable self-referencing parents with `nullOnDelete` promotion to root.
 - Products and categories expose a many-to-many relationship through `category_product`.
 - Category updates cover rename slug generation, parent reassignment and rejection of self/descendant parents.
-- Focused tests: `ProductCreationTest.php` (9 tests, 28 assertions) and `CategoryFoundationTest.php` (17 tests, 58 assertions).
+
+Verified on 2026-11-10:
+- Products can be retrieved by ID and by slug through `FindsProducts`; unknown values throw `ModelNotFoundException`.
+- `UpdateProduct` supports partial updates of name, description and active status; omitted fields keep their stored values.
+- Renaming regenerates the slug through `Support\UniqueSlug`, preserving an unchanged name's existing slug and suffixing collisions.
+- `CreateProduct` now reuses `Support\UniqueSlug` instead of duplicating slug generation.
+- `Product` casts `is_active` to boolean and exposes typed property/relation annotations.
+- Focused tests: `ProductCreationTest.php` (9 tests, 28 assertions), `CategoryFoundationTest.php` (17 tests, 58 assertions) and `ProductRetrievalAndUpdateTest.php` (15 tests, 40 assertions).
 
 Remaining gaps:
-- Product update, retrieval and publication lifecycle behavior are not implemented.
+- Product publication lifecycle behavior is not implemented.
 - Category retrieval/deletion actions and product-category assignment actions are not implemented.
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
@@ -116,10 +123,22 @@ Tracked changes included:
 - Identity User model, factory and login route changes.
 - Root `src/routes/web.php` changes.
 
+<<<<<<< feature/catalog
 Untracked files included:
 - Root `AGENTS.md`, `CLAUDE.md`, and `docs/`.
 - `src/app/Livewire/Pages/` and the post-create Blade view.
 - `src/tests/Feature/Catalog/`.
+=======
+Stock movement read/reporting was subsequently committed as `4532690` (`feat(inventory): implemented inventory stock movement read & reporting`).
+
+After the Catalog product retrieval/update implementation, the working tree contains uncommitted changes:
+- New `FindProduct` and `UpdateProduct` actions, `FindsProducts` and `UpdatesProducts` contracts and `UpdateProductData` under `src/app/Modules/Catalog/`.
+- New `src/tests/Feature/Catalog/ProductRetrievalAndUpdateTest.php`.
+- `CatalogServiceProvider` bindings and shared slug reuse in `CreateProduct`.
+- Product/Category model annotations, boolean cast and factory typing for PHPStan.
+- Pint formatting normalization in pre-existing Catalog files.
+- Updated shared documentation.
+>>>>>>> local
 
 The branch was `feature/catalog`. The latest commit was `7cdb745`.
 
@@ -143,7 +162,20 @@ docker compose run --rm --no-deps cli php artisan test --compact
 
 - Baseline at the start of Category foundation: 40 passed, 3 failed (109 assertions).
 - After completing the Category foundation: 57 passed, 3 failed (167 assertions).
+<<<<<<< feature/catalog
 - Catalog focused suite: 26 passed, 86 assertions.
+=======
+- After completing the Inventory foundation: 87 passed, 3 failed (272 assertions).
+- After stock movement history: 87 passed, 3 failed (272 assertions).
+- After stock movement read/reporting: 101 passed, 3 failed (314 assertions).
+- After Catalog product retrieval/update: 116 passed, 3 failed (354 assertions).
+- Catalog focused suite: 41 passed, 126 assertions.
+- Inventory focused suite after read/reporting: 44 passed, 147 assertions.
+- `StockMovementReadTest.php`: 14 passed, 42 assertions.
+- PHPStan level 7 on `app/Modules/Inventory`: no errors.
+- PHPStan level 7 on `app/Modules/Catalog`: no errors after product retrieval/update.
+- Full-project PHPStan: 23 pre-existing errors outside Catalog and Inventory.
+>>>>>>> local
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -160,6 +192,6 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Add Catalog product retrieval and update behavior.
+3. Define product publication lifecycle behavior.
 4. Add product-category assignment actions if the product workflows require them.
 5. Define required first-release product fields and variant direction before expanding the schema.
