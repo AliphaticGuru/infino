@@ -30,10 +30,7 @@ final class ProductForm
                     ->disabled()
                     ->dehydrated(false)
                     ->hiddenOn('create')
-                    ->default(fn (?Product $record): ?string => $record?->variants()
-                        ->orderBy('position')
-                        ->orderBy('id')
-                        ->first()?->sku),
+                    ->default(fn (?Product $record): ?string => $record?->defaultVariant?->sku),
                 Textarea::make('description')
                     ->columnSpanFull(),
                 Toggle::make('is_active')

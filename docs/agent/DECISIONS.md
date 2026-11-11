@@ -130,6 +130,53 @@ Consequences:
 - New Catalog Filament actions must call module contracts and declare
   authorization explicitly.
 
+### DEC-020 — Default variant identity and variant lifecycle rules
+**Status:** Confirmed and implemented
+**Date:** 2026-11-11
+**Branch:** `feature/catalog`
+
+Context:
+Task 003 introduced variants without an explicit default marker. Variant
+administration needs a stable rule for which variant is the default, which
+lifecycle operations are legal, and how ordering is kept consistent.
+
+Decision:
+- The default variant is the product's oldest variant, determined by lowest
+  `product_variants.id`. No additional `is_default` column is introduced.
+  Product creation and backfill create the default variant first, and new
+  variants are appended, so the convention is deterministic and survives label
+  edits and repositioning.
+- `Product::defaultVariant()` exposes the oldest variant and
+  `ProductVariant::isDefault()` compares against it.
+- The default variant cannot be deactivated. A product therefore always has at
+  least one active variant; operational availability remains controlled by the
+  product's `is_active` and publication `status`.
+- Any variant can be activated. Deactivating an already inactive variant, or the
+  last active variant, raises `ValidationException`.
+- Variants are not hard-deleted through the administration layer. Deactivation
+  preserves inventory rows and append-only stock movement history.
+- Variant positions are zero-based and normalized to `0..n-1` per product.
+  Creation appends and normalizes. Repositioning requires the complete,
+  duplicate-free set of that product's variant IDs inside a transaction with row
+  locking, so missing, duplicate or cross-product IDs are rejected.
+- Variant updates accept only SKU, label and `variant_key`; the owning product
+  cannot be changed through the update contract.
+- Filament delegates creation, editing, lifecycle changes and reordering to
+  Catalog contracts/actions.
+
+Rationale:
+A deterministic default and a small set of guarded lifecycle transitions keep
+inventory and future order references valid without adding a schema flag that
+would need backfilling and concurrency protection. Rejecting deletion preserves
+the audit trail already established for stock movements.
+
+Consequences:
+- If a future workflow needs to promote a different variant to default, the
+  oldest-id convention must be replaced by an explicit marker in a separate
+  decision.
+- Variant administration cannot remove variants; it can only deactivate them.
+- Position management is intentionally product-scoped.
+
 ### DEC-019 — Variant-first product architecture and variant-owned inventory
 **Status:** Confirmed and implemented for the foundation
 **Date:** 2026-11-11

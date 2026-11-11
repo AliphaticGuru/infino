@@ -50,4 +50,16 @@ final class ProductVariant extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    /**
+     * The default variant is the product's oldest variant.
+     *
+     * This keeps the invariant deterministic without a separate database flag:
+     * product creation and backfill create the default variant first, and later
+     * variants are appended.
+     */
+    public function isDefault(): bool
+    {
+        return $this->product->defaultVariant?->is($this) ?? false;
+    }
 }

@@ -49,7 +49,7 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, the first Filament admin layer and the variant-first foundation are complete
+**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, variant administration, the Filament admin layer and the variant-first foundation are complete; attributes/options, media and pricing remain
 
 Suggested sequence:
 1. ~~Verify Catalog module registration.~~ Complete.
@@ -61,8 +61,9 @@ Suggested sequence:
 7. ~~Define product publication/status behavior.~~ Complete: draft/published/archived enum with guarded transitions (DEC-017).
 8. ~~Add categories and category relationships.~~ Complete; product-category pivot, parent-child hierarchy and assignment actions verified.
 9. ~~Specify variants before implementation.~~ Complete: variant-first foundation, default variants and variant-keyed inventory (DEC-019). Brands and attributes remain open.
-10. ~~Integrate the administrative workflow.~~ Complete for products and categories; variant administration remains pending.
-11. Add variant administration (multiple variants, editing, deactivation, positions).
+10. ~~Integrate the administrative workflow.~~ Complete for products, categories and product variants.
+11. ~~Add variant administration (multiple variants, editing, deactivation, positions).~~ Complete: retrieval, creation, update, activation/deactivation, product-scoped positioning and Filament relation-manager administration (DEC-020, 2026-11-11).
+12. Add attributes/options, then media, then the Pricing module.
 
 Completion criteria:
 - Product persistence is tested.

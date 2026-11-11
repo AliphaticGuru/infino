@@ -2,6 +2,126 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-11 — Catalog product variant administration (Task 004)
+
+### Objective
+Add administration for the multiple variants introduced by the variant-first
+foundation: retrieval, creation, updating, activation/deactivation, product-scoped
+positioning and a Filament relation manager, all behind Catalog contracts,
+actions, data objects and policies. Preserve the default-variant invariant,
+SKU uniqueness and the existing inventory/stock-movement relationships.
+
+### Work performed
+- Inspected Git state first; stayed on `feature/catalog` at `d44f6e8` and did not
+  commit, merge or reset.
+- Added variant retrieval: `FindsProductVariants` / `FindProductVariant` with
+  `forProduct()` (ordered by `position`, then `id`), `find()` and
+  `findForProduct()` (product-scoped).
+- Added creation: `CreatesProductVariants` / `CreateProductVariant` /
+  `CreateProductVariantData`. Validates global SKU uniqueness and per-product
+  `variant_key` uniqueness, generates collision-safe SKUs, appends the variant,
+  normalizes positions to `0..n-1` and preserves the default invariant when the
+  first variant of a variant-less product is created. Runs in a transaction with
+  the product and variants locked.
+- Added updating: `UpdatesProductVariants` / `UpdateProductVariant` /
+  `UpdateProductVariantData`. Accepts only SKU, label and `variant_key`; the
+  owning product cannot change; uniqueness ignores the current record; inventory
+  and stock movements are untouched.
+- Added lifecycle: `TransitionsProductVariantStatus` /
+  `TransitionProductVariantStatus`. Rejects already-active activation,
+  already-inactive deactivation, deactivation of the default variant and
+  deactivation of the last active variant. Transitions run in a transaction with
+  row locking.
+- Added positioning: `RepositionsProductVariants` /
+  `RepositionProductVariants`. Requires the complete, duplicate-free set of the
+  product's variant IDs and rejects duplicate, missing and cross-product IDs.
+- Added `Product::defaultVariant()` (oldest variant by `id`),
+  `ProductVariant::isDefault()` and `ProductVariantPolicy`. The policy allows
+  administration to admins and denies deletion for everyone because variants are
+  deactivated instead of hard-deleted.
+- Registered the new contracts and policy in `CatalogServiceProvider`.
+- Added Filament `VariantsRelationManager`, `ProductVariantForm` and
+  `ProductVariantsTable` to the product edit page. Listing, creation, editing,
+  activation/deactivation and drag reordering all delegate to Catalog contracts.
+  Deactivation is hidden for the default variant and for variants without another
+  active sibling.
+- Updated `ProductForm` to read the default-variant SKU from
+  `Product::defaultVariant()`.
+- Recorded the default-variant and lifecycle rules as DEC-020 in
+  `docs/agent/DECISIONS.md`.
+- Updated `PROJECT_STATE.md`, `modules/CATALOG.md`, `ROADMAP.md`,
+  `HANDOFF.md`, `src/app/Modules/Catalog/README.md` and this work log.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Contracts/FindsProductVariants.php`
+- `src/app/Modules/Catalog/Contracts/CreatesProductVariants.php`
+- `src/app/Modules/Catalog/Contracts/UpdatesProductVariants.php`
+- `src/app/Modules/Catalog/Contracts/TransitionsProductVariantStatus.php`
+- `src/app/Modules/Catalog/Contracts/RepositionsProductVariants.php`
+- `src/app/Modules/Catalog/Actions/FindProductVariant.php`
+- `src/app/Modules/Catalog/Actions/CreateProductVariant.php`
+- `src/app/Modules/Catalog/Actions/UpdateProductVariant.php`
+- `src/app/Modules/Catalog/Actions/TransitionProductVariantStatus.php`
+- `src/app/Modules/Catalog/Actions/RepositionProductVariants.php`
+- `src/app/Modules/Catalog/Data/CreateProductVariantData.php`
+- `src/app/Modules/Catalog/Data/UpdateProductVariantData.php`
+- `src/app/Modules/Catalog/Policies/ProductVariantPolicy.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Schemas/ProductVariantForm.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Tables/ProductVariantsTable.php`
+- `src/tests/Feature/Catalog/ProductVariantAdministrationTest.php`
+- `src/tests/Feature/Catalog/Filament/ProductVariantResourceTest.php`
+- `docs/agent/tasks/active/004-catalog-product-variant-administration.md`
+
+Modified:
+- `src/app/Modules/Catalog/Models/Product.php`
+- `src/app/Modules/Catalog/Models/ProductVariant.php`
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/ProductResource.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Schemas/ProductForm.php`
+- `src/app/Modules/Catalog/README.md`
+- `docs/agent/DECISIONS.md`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/ROADMAP.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+
+### Tests and verification
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Catalog`
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Inventory`
+- `docker compose run --rm --no-deps cli php artisan test --compact`
+- `docker compose run --rm --no-deps cli vendor/bin/pint --dirty --format agent`
+- `docker compose run --rm --no-deps cli vendor/bin/phpstan analyse app/Modules/Catalog`
+- `docker compose run --rm --no-deps cli vendor/bin/phpstan analyse app/Modules/Inventory`
+- `git diff --check`
+
+### Results
+- Catalog focused suite: 180 passed (570 assertions).
+- Inventory focused suite: 52 passed (174 assertions).
+- Full suite: 263 passed, 3 failed (825 assertions).
+- The 3 failures are pre-existing and unrelated: `Tests\Feature\Auth\AuthenticationTest`,
+  `Tests\Feature\Auth\TwoFactorChallengeTest` and
+  `Tests\Feature\PostCreatePageTest`.
+- Pint: passed.
+- PHPStan on Catalog: no errors. PHPStan on Inventory: no errors.
+- `git diff --check`: clean.
+
+### Outstanding issues
+- `UpdateProductVariant` treats `null` as "not provided", so the form cannot clear
+  a label or variant key.
+- Variant hard deletion is not exposed; variants are deactivated instead.
+- Attributes/options, media and pricing remain future phases.
+- The 3 pre-existing full-suite failures remain.
+- Full-project PHPStan still reports 21 pre-existing errors outside
+  Catalog/Inventory.
+- No CI job runs PostgreSQL `migrate:fresh`.
+
+### Next action
+Implement attributes/options on top of the variant foundation, then media and the
+Pricing module, in that order.
+
 ## 2026-11-11 — Catalog variant foundation and Inventory variant re-key (Task 003)
 
 ### Objective

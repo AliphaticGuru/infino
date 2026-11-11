@@ -7,6 +7,7 @@ namespace App\Modules\Catalog\Filament\Resources\Products;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\CreateProduct;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\EditProduct;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\ListProducts;
+use App\Modules\Catalog\Filament\Resources\Products\RelationManagers\VariantsRelationManager;
 use App\Modules\Catalog\Filament\Resources\Products\Schemas\ProductForm;
 use App\Modules\Catalog\Filament\Resources\Products\Tables\ProductsTable;
 use App\Modules\Catalog\Models\Product;
@@ -43,6 +44,13 @@ final class ProductResource extends Resource
             'index' => ListProducts::route('/'),
             'create' => CreateProduct::route('/create'),
             'edit' => EditProduct::route('/{record}/edit'),
+        ];
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            VariantsRelationManager::class,
         ];
     }
 }

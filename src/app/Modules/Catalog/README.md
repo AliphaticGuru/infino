@@ -9,7 +9,8 @@ inventory quantities, cart state, orders or payments.
 
 - Create, retrieve and update products.
 - Manage categories and the category-product relationship.
-- Own product variants and the default variant created with every product.
+- Own product variants, the default variant created with every product, and
+  variant administration (create, update, activate/deactivate, position).
 - Generate collision-safe slugs through `Support\UniqueSlug` and collision-safe
   SKUs through `Support\UniqueSku`.
 - Validate product and category input.
@@ -39,5 +40,15 @@ inventory quantities, cart state, orders or payments.
   existing slug.
 - Categories support nullable parents with `nullOnDelete` promotion to root and
   a many-to-many relationship with products.
-- Filament product and category administration exists; variant administration,
-  attributes, media and pricing are not implemented yet.
+- Variants are administered through `FindsProductVariants`,
+  `CreatesProductVariants`, `UpdatesProductVariants`,
+  `TransitionsProductVariantStatus` and `RepositionsProductVariants`:
+  - the default variant is the product's oldest variant (lowest `id`) and cannot
+    be deactivated;
+  - SKUs are globally unique when present and `variant_key` is unique per product;
+  - positions are zero-based and normalized to `0..n-1` per product;
+  - variants are deactivated rather than deleted, preserving inventory and stock
+    movement history.
+- Filament product and category administration exists, including a variant
+  relation manager on the product edit page; attributes, media and pricing are
+  not implemented yet.

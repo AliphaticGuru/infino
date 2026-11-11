@@ -2,18 +2,18 @@
 
 **Last updated:** 2026-11-11
 **Branch at last inspection:** `feature/catalog`
-**Latest commit at last inspection:** `636b0fc` — `feat(catalog): implemented catalog filament administration`
+**Latest commit at last inspection:** `d44f6e8` — `feat(catalog): implemented catalog variant foundation & inventory variant re-key`
 
 ## Objective
 
-Continue Catalog MVP work from the completed variant foundation. Task 003
-introduced `ProductVariant` as the canonical purchasable unit, created a default
-variant for every product and re-keyed Inventory from `product_id` to
-`variant_id` without losing data.
+Continue Catalog MVP work from the completed variant administration task. Task
+003 introduced `ProductVariant` as the canonical purchasable unit, created a
+default variant for every product and re-keyed Inventory from `product_id` to
+`variant_id`. Task 004 added retrieval, creation, updating, activation/
+deactivation, positioning and Filament administration for multiple variants.
 
-The next concrete task is variant administration: create, edit, deactivate and
-position multiple variants per product behind Catalog contracts and policies.
-Keep Cart, Checkout, Orders and Payments untouched.
+The next concrete task is attributes and options on top of the variant
+foundation. Keep Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -22,16 +22,16 @@ Keep Cart, Checkout, Orders and Payments untouched.
 3. `docs/agent/PRODUCT_BLUEPRINT.md`
 4. `docs/agent/PROJECT_STATE.md`
 5. `docs/agent/ROADMAP.md`
-6. `docs/agent/DECISIONS.md` (especially DEC-019)
+6. `docs/agent/DECISIONS.md` (especially DEC-019 and DEC-020)
 7. `docs/agent/modules/CATALOG.md`
-8. `docs/agent/tasks/active/003-catalog-variant-foundation-and-inventory-rekey.md`
+8. `docs/agent/tasks/active/004-catalog-product-variant-administration.md`
 9. This handoff.
 10. `src/AGENTS.md` before Laravel application changes.
 
 ## Important repository protection
 
-The working tree contains the uncommitted Task 003 variant foundation and
-Inventory re-key on top of `636b0fc`. This work is not committed.
+The working tree contains the uncommitted Task 004 variant administration on top
+of `d44f6e8`. This work is not committed.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
@@ -45,7 +45,7 @@ Run `git status --short` again before doing anything. The recorded state is hist
 
 Four tracked Foundation files were found NUL-byte corrupted on disk on
 2026-11-11 while Git's stat cache still reported them unchanged. They were
-restored byte-for-byte from `HEAD`:
+restored byte-for-byte from `HEAD` during Task 003:
 
 - `src/app/Foundation/Modules/ModuleManager.php`
 - `src/app/Foundation/Modules/ModuleManifest.php`
@@ -65,18 +65,19 @@ logic bug.
 - Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
 - Catalog product/category foundations, retrieval/update, publication lifecycle,
-  product-category assignment, category retrieval/deletion, the Filament admin
-  layer and the variant-first foundation: verified.
+  product-category assignment, category retrieval/deletion, variant foundation,
+  variant administration and the Filament admin layer: verified.
 - Inventory variant-keyed stock, movement history and read/reporting: verified.
-- Catalog focused suite: **144 passed (431 assertions)**.
+- Catalog focused suite after Task 004: **180 passed (570 assertions)**.
+- Catalog Filament suite after Task 004: **45 passed (179 assertions)**.
 - Inventory focused suite: **52 passed (174 assertions)**.
-- Full suite after Task 003: **227 passed, 3 failed (686 assertions)**.
+- Full suite after Task 004: **263 passed, 3 failed (825 assertions)**.
 - Pint on changed Catalog/Inventory source and tests: passed.
 - PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
 - Full-project PHPStan: 21 pre-existing errors outside Catalog/Inventory.
-- Fresh PostgreSQL `migrate:fresh` verified on a throwaway database.
-- New migrations roll back (`--step=7`) and re-apply cleanly.
-- Development PostgreSQL migration applied; existing data preserved.
+- Fresh PostgreSQL `migrate:fresh` was verified during Task 003 on a throwaway
+  database. Task 004 adds no migrations.
+- New Task 003 migrations roll back (`--step=7`) and re-apply cleanly.
 
 ## Known failures unrelated to Catalog and Inventory
 
@@ -116,22 +117,52 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
   generating `SKU-{productId}` when no SKU is supplied.
 - `ProductFactory` creates a default variant by default and exposes
   `withoutVariant()`.
-- Filament product admin accepts an optional default-variant SKU on create,
-  shows it read-only on edit and displays variant count/SKU columns.
 - Decision recorded as DEC-019 in `docs/agent/DECISIONS.md`.
+
+## Implemented variant administration (Task 004)
+
+- Default variant: the product's oldest variant (lowest `id`). Exposed through
+  `Product::defaultVariant()` and `ProductVariant::isDefault()`; no `is_default`
+  column (DEC-020).
+- Retrieval: `FindsProductVariants` / `FindProductVariant` with `forProduct()`,
+  `find()` and `findForProduct()`.
+- Creation: `CreatesProductVariants` / `CreateProductVariant` /
+  `CreateProductVariantData`; validates SKU and per-product variant-key
+  uniqueness, generates SKUs, appends and normalizes positions, preserves the
+  default invariant.
+- Updating: `UpdatesProductVariants` / `UpdateProductVariant` /
+  `UpdateProductVariantData`; accepts only SKU, label and `variant_key`.
+- Lifecycle: `TransitionsProductVariantStatus` /
+  `TransitionProductVariantStatus`; rejects already-active activation,
+  already-inactive deactivation, default-variant deactivation and last-active
+  deactivation.
+- Positioning: `RepositionsProductVariants` / `RepositionProductVariants`;
+  requires the complete, duplicate-free product variant ID set.
+- Authorization: `ProductVariantPolicy` allows administration to admins and
+  denies deletion for everyone.
+- Filament: `VariantsRelationManager`, `ProductVariantForm` and
+  `ProductVariantsTable` on the product edit page, delegating to Catalog
+  contracts. Deactivation is hidden for the default variant and for variants
+  without another active sibling.
+- Tests: `ProductVariantAdministrationTest.php` (27 tests, 95 assertions) and
+  `ProductVariantResourceTest.php` (9 tests, 44 assertions).
+- Decision recorded as DEC-020 in `docs/agent/DECISIONS.md`.
 
 ## Implemented Filament administration layer
 
 - Identity users carry an `is_admin` boolean; `User` implements `FilamentUser`
   and `canAccessPanel()` returns the flag.
 - `ProductPolicy` and `CategoryPolicy` require `is_admin`; `ProductPolicy` adds
-  `publish` and `manageCategories`.
+  `publish` and `manageCategories`; `ProductVariantPolicy` adds variant
+  administration and denies deletion.
 - Policies are registered in `CatalogServiceProvider::bootModule()`.
 - `ProductResource` lists name, slug, status, categories, variant count/SKUs and
   created date with search, filters, sorting and pagination.
 - Product creation/editing call `CreatesProducts`/`UpdatesProducts`; publish,
   unpublish, archive and restore call `TransitionsProductStatus`.
 - `manageCategories` calls `SyncsProductCategories`.
+- The `VariantsRelationManager` provides variant listing, creation, editing,
+  activation/deactivation and drag reordering.
 - `CategoryResource` lists and manages categories and calls
   `CreatesCategories`/`UpdatesCategories`/`DeletesCategories`.
 - No bulk delete actions are registered.
@@ -155,30 +186,21 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 ## Immediate task sequence
 
-### Option A — Variant administration (recommended)
+### Option A — Attributes and options (recommended)
 
-- Add Catalog contracts and actions for creating, updating, deactivating and
-  repositioning variants.
-- Keep validation, uniqueness and business rules inside the Catalog module.
-- Expose the actions through an authorised Filament relation manager or page.
-- Add tests for multiple variants per product, SKU uniqueness, deactivation,
-  ordering and authorization.
-- Do not implement attributes/options yet; use `label` and `variant_key` as the
-  current foundation.
-
-### Option B — Attributes and options
-
-- Define normalized global attribute definitions and options.
+- Define normalized global attribute definitions and options in Catalog.
 - Add select-based variant dimensions on top of `variant_key`.
-- Migrate the default-only assumption only after the attribute model is decided.
+- Keep variant SKU, lifecycle and positioning behaviour unchanged.
 - Record the decision in `DECISIONS.md` before changing the schema.
+- Add focused Catalog tests for definitions, options, values and validation.
 
-### Option C — Media
+### Option B — Media
 
 - Add product media using the Laravel `public` disk and Filament `FileUpload`.
 - Keep media owned by Catalog and do not add pricing or order concerns.
+- Add focused tests for upload, replacement and deletion.
 
-### Option D — Expose Inventory movement history
+### Option C — Expose Inventory movement history
 
 - Add an authorised read layer (Filament page or API resource) over
   `StockMovementReadService`.
@@ -195,6 +217,8 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - Add per-location and per-reason reporting breakdowns.
 - Add a PostgreSQL `migrate:fresh` check to CI.
 - Replace the `is_admin` boolean with roles/permissions only when required.
+- Consider an explicit `is_default` column only if the oldest-variant convention
+  proves insufficient.
 
 ### Verification and shared memory
 
@@ -207,8 +231,8 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 - The working tree is coherent and no uncommitted work is discarded.
 - The chosen task is implemented within its owning module.
-- Variant, validation, lifecycle, assignment, deletion and stock rules are
-  covered by tests.
+- Variant, validation, lifecycle, assignment, deletion, stock and administration
+  rules are covered by tests.
 - Catalog and Inventory focused tests remain green.
 - Full-suite results and unrelated failures are recorded accurately.
 - Pint and module PHPStan pass.

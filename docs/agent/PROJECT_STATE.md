@@ -2,7 +2,7 @@
 
 **Last inspected:** 2026-11-11
 **Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `636b0fc` — `feat(catalog): implemented catalog filament administration`
+**Latest commit at inspection:** `d44f6e8` — `feat(catalog): implemented catalog variant foundation & inventory variant re-key`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -47,7 +47,7 @@ Observed files include:
 Core is declared as a dependency of Identity, Catalog and Inventory.
 
 ### Identity
-**Status:** Foundation committed; admin flag and Filament panel access added in the working tree.
+**Status:** Foundation committed; admin flag and Filament panel access committed.
 
 Observed capabilities/files include:
 - User model.
@@ -61,19 +61,21 @@ Observed capabilities/files include:
 The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product, category and variant foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, the first Filament admin layer and the variant-first Inventory re-key verified with focused tests.
+**Status:** Product, category and variant foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
 - Product: `CreateProduct`, `FindProduct`, `UpdateProduct`, `TransitionProductStatus`, `AssignProductCategories`, `RemoveProductCategories` and `SyncProductCategories` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts`, `TransitionsProductStatus`, `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
-- Product variants: `ProductVariant` model, `ProductVariantFactory`, `z01_create_product_variants_table.php`, `z02_backfill_default_product_variants.php`, `Support/UniqueSku.php` and `Support/DefaultVariantBackfill.php`.
+- Product variants: `ProductVariant` model with `defaultVariant()`/`isDefault()` helpers, `ProductVariantFactory`, `z01_create_product_variants_table.php`, `z02_backfill_default_product_variants.php`, `Support/UniqueSku.php` and `Support/DefaultVariantBackfill.php`.
+- Variant administration: `FindProductVariant`, `CreateProductVariant`, `UpdateProductVariant`, `TransitionProductVariantStatus` and `RepositionProductVariants` actions; `FindsProductVariants`, `CreatesProductVariants`, `UpdatesProductVariants`, `TransitionsProductVariantStatus` and `RepositionsProductVariants` contracts; `CreateProductVariantData` and `UpdateProductVariantData`; `ProductVariantPolicy`.
+- Variant Filament administration: `Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`, `Schemas/ProductVariantForm.php` and `Tables/ProductVariantsTable.php`.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory`, `UpdateCategory`, `FindCategory` and `DeleteCategory` actions, `CreatesCategories`, `UpdatesCategories`, `FindsCategories` and `DeletesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
 - Shared slug helper: `Support/UniqueSlug.php`.
 - Filament 5 administration: `Filament/Resources/Products/*` and `Filament/Resources/Categories/*` (resources, schemas, tables and pages).
-- Authorization: `Policies/ProductPolicy.php` and `Policies/CategoryPolicy.php`, registered with `Gate::policy()` in the module provider.
+- Authorization: `Policies/ProductPolicy.php`, `Policies/CategoryPolicy.php` and `Policies/ProductVariantPolicy.php`, registered with `Gate::policy()` in the module provider.
 - Panel resource discovery: `src/app/Providers/Filament/AdminPanelProvider.php`.
 
 The product implementation represents `name`, `slug`, `description`, `is_active` and `status`. Categories add `parent_id`, `name`, `slug`, `description` and `is_active`. Variants add `product_id`, nullable unique `sku`, nullable `label`, nullable `variant_key`, `is_active`, `position` and timestamps.
@@ -151,11 +153,27 @@ Verified on 2026-11-11 (variant foundation and Inventory re-key):
 - Catalog focused suite: 144 passed (431 assertions). Inventory focused suite: 52 passed (174 assertions).
 - Fresh PostgreSQL `migrate:fresh` and rollback/re-apply of the new migrations verified on a throwaway database.
 
+Verified on 2026-11-11 (product variant administration):
+- Variants can be listed per product in `position` then `id` order and retrieved individually; product-scoped retrieval rejects variants from other products.
+- Additional variants can be created for existing products; SKU uniqueness and per-product variant-key uniqueness are validated.
+- Missing SKUs are generated collision-safely; new variants are appended and positions are normalized to `0..n-1`.
+- Creating the first variant of a variant-less product preserves the default-variant invariant.
+- Variants can be updated without changing their product; duplicate SKUs and variant keys are rejected, including ignoring the current record.
+- Variant updates and lifecycle changes preserve inventory rows and append-only stock movements.
+- Non-default variants can be activated and deactivated; already-active, already-inactive and last-active deactivations are rejected.
+- The default variant (the product's oldest variant) cannot be deactivated.
+- Variants can be repositioned only with the complete, duplicate-free set of that product's variant IDs; cross-product and missing IDs are rejected.
+- `ProductVariantPolicy` allows administration to admins and denies all abilities to non-admins; deletion is denied for everyone because variants are deactivated instead.
+- Filament adds a `VariantsRelationManager` with listing, creation, editing, activation/deactivation and drag reordering, all routed through Catalog contracts.
+- Focused tests: `ProductVariantAdministrationTest.php` (27 tests, 95 assertions) and `ProductVariantResourceTest.php` (9 tests, 44 assertions).
+- Catalog focused suite after Task 004: 180 passed (570 assertions).
+
 Remaining gaps:
 - No product deletion action is exposed in the admin layer.
 - `UpdateProduct` cannot clear a description and `UpdateCategory` cannot clear a parent to root through the forms; both are existing contract limitations.
+- `UpdateProductVariant` treats `null` as "not provided", so the form cannot clear a label or variant key.
 - Admin access is a single boolean; roles and granular permissions are future work.
-- Required first-release fields and variant support remain undecided.
+- Brands, attributes/options, media and pricing remain undecided or unimplemented.
 - Names are not unique; duplicate names receive suffixed slugs.
 
 ### Inventory
@@ -240,11 +258,10 @@ Inspect the module infrastructure before changing loading behavior.
 
 The repository was inspected on 2026-11-11 on `feature/catalog`.
 
-- `feature/catalog` HEAD is `636b0fc` (`feat(catalog): implemented catalog filament administration`).
-- The Filament administration layer, Catalog policies and Identity admin flag are committed at that HEAD.
-- The working tree contains the uncommitted Task 003 variant foundation and Inventory re-key: new migrations, models, factories, support classes, tests and documentation updates.
-- The `2026_11_10_000000_add_is_admin_to_users_table` migration and the new Catalog/Inventory migrations have been applied to the development PostgreSQL database.
-- Nothing from Task 003 has been committed.
+- `feature/catalog` HEAD is `d44f6e8` (`feat(catalog): implemented catalog variant foundation & inventory variant re-key`).
+- Task 003 (variant foundation and Inventory variant re-key) is committed at that HEAD.
+- The working tree contains the uncommitted Task 004 product variant administration: new actions, contracts, data objects, policy, Filament relation manager, tests and documentation updates.
+- Nothing from Task 004 has been committed.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -286,10 +303,13 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
 - After the Catalog Filament administration layer: **204 passed, 3 failed (622 assertions)**.
 - After Task 003 (variant foundation + Inventory variant re-key): **227 passed, 3 failed (686 assertions)**.
-- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003.
-- Catalog Filament suite: **36 passed (135 assertions)**.
+- After Task 004 (product variant administration): **263 passed, 3 failed (825 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004.
+- Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004.
 - Inventory focused suite: 44 passed (147 assertions) before Task 003; **52 passed (174 assertions)** after Task 003.
 - `ProductVariantFoundationTest.php`: 10 passed (19 assertions).
+- `ProductVariantAdministrationTest.php`: 27 passed (95 assertions).
+- `ProductVariantResourceTest.php`: 9 passed (44 assertions).
 - `ProductCreationTest.php`: 14 passed (46 assertions).
 - `InventoryFoundationTest.php`: 18 passed (51 assertions).
 - `StockMovementTest.php`: 15 passed (62 assertions).
@@ -319,9 +339,9 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Build variant administration (create/edit/deactivate variants) on top of the variant foundation.
+3. Implement attributes/options, then media, then the Pricing module, in that order.
 4. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
-5. Implement attributes/options, then media, then the Pricing module, in that order.
-6. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
-7. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
-8. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
+5. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
+6. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
+7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
+8. Consider an explicit `is_default` column only if the oldest-variant convention proves insufficient.

@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product, category, variant foundation and variant-keyed Inventory complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified
+**Status:** Product, category, variant foundation and variant administration complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion, variant-keyed Inventory and the Filament admin layer verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -39,6 +39,18 @@ Product:
 - `Database/Migrations/z_add_status_to_products_table.php`
 - `Database/Migrations/z01_create_product_variants_table.php`
 - `Database/Migrations/z02_backfill_default_product_variants.php`
+- `Actions/FindProductVariant.php`
+- `Actions/CreateProductVariant.php`
+- `Actions/UpdateProductVariant.php`
+- `Actions/TransitionProductVariantStatus.php`
+- `Actions/RepositionProductVariants.php`
+- `Contracts/FindsProductVariants.php`
+- `Contracts/CreatesProductVariants.php`
+- `Contracts/UpdatesProductVariants.php`
+- `Contracts/TransitionsProductVariantStatus.php`
+- `Contracts/RepositionsProductVariants.php`
+- `Data/CreateProductVariantData.php`
+- `Data/UpdateProductVariantData.php`
 
 Category:
 - `Models/Category.php`
@@ -64,6 +76,9 @@ Filament administration (Filament 5, module-owned):
 - `Filament/Resources/Products/Pages/ListProducts.php`
 - `Filament/Resources/Products/Pages/CreateProduct.php`
 - `Filament/Resources/Products/Pages/EditProduct.php`
+- `Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`
+- `Filament/Resources/Products/Schemas/ProductVariantForm.php`
+- `Filament/Resources/Products/Tables/ProductVariantsTable.php`
 - `Filament/Resources/Categories/CategoryResource.php`
 - `Filament/Resources/Categories/Schemas/CategoryForm.php`
 - `Filament/Resources/Categories/Tables/CategoriesTable.php`
@@ -74,6 +89,7 @@ Filament administration (Filament 5, module-owned):
 Authorization:
 - `Policies/ProductPolicy.php`
 - `Policies/CategoryPolicy.php`
+- `Policies/ProductVariantPolicy.php`
 
 Inventory (owned by the Inventory module, listed here only for the product boundary):
 - `App\Modules\Inventory\Models\Inventory` and `StockMovement`
@@ -159,8 +175,8 @@ Rules:
 - `ProductFactory` creates a default variant by default and exposes
   `withoutVariant()` for tests that need a product without one.
 
-The variant foundation deliberately does not include variant administration,
-attribute values, media or prices. Those remain later phases.
+The variant foundation does not include attribute values, media or prices. Those
+remain later phases; variant administration is covered in the next section.
 
 Verified on 2026-11-11:
 - `ProductVariantFoundationTest.php` (10 tests): schema, factory, product
@@ -170,6 +186,66 @@ Verified on 2026-11-11:
 - `ProductCreationTest.php` additions: atomic default-variant creation, custom
   SKU, duplicate-SKU rejection, collision-safe generated SKU and product
   rollback when variant creation fails.
+
+## Product variant administration
+
+Variant administration is implemented behind Catalog contracts and actions. The
+default variant is the product's oldest variant (lowest `id`); no extra
+`is_default` column is used. `Product::defaultVariant()` exposes it and
+`ProductVariant::isDefault()` compares against it (DEC-020).
+
+Retrieval (`FindsProductVariants` / `FindProductVariant`):
+- `forProduct(Product)` returns all variants ordered by `position` then `id`.
+- `find(int)` returns a variant or throws `ModelNotFoundException`.
+- `findForProduct(Product, int)` scopes retrieval to the product and throws
+  `ModelNotFoundException` for variants owned by another product.
+
+Creation (`CreatesProductVariants` / `CreateProductVariant` /
+`CreateProductVariantData`):
+- Accepts the product, optional SKU, optional label, optional `variant_key` and
+  an active flag.
+- Validates SKU global uniqueness and `variant_key` uniqueness per product.
+- Generates a collision-safe `SKU-{productId}-{nextPosition}` when no SKU is
+  supplied.
+- Runs in a transaction with the product row and existing variants locked.
+- Appends the variant, then normalizes all positions to `0..n-1`.
+- The first variant of a variant-less product becomes the default (label
+  `Default`, position `0`, active), preserving the default-variant invariant.
+
+Update (`UpdatesProductVariants` / `UpdateProductVariant` /
+`UpdateProductVariantData`):
+- Accepts only SKU, label and `variant_key`; the owning product cannot be
+  changed through this contract.
+- Omitted fields keep their stored values.
+- Validates SKU uniqueness and per-product `variant_key` uniqueness while
+  ignoring the current record.
+- Runs in a transaction and does not touch inventory or stock movements.
+
+Lifecycle (`TransitionsProductVariantStatus` / `TransitionProductVariantStatus`):
+- `activate` rejects an already-active variant.
+- `deactivate` rejects an already-inactive variant, the default variant and the
+  last active variant.
+- Transitions run in a transaction with row locking and preserve inventory rows
+  and append-only stock movements.
+- Variants are never hard-deleted through administration; deletion is denied by
+  policy.
+
+Positioning (`RepositionsProductVariants` / `RepositionProductVariants`):
+- Accepts the complete, duplicate-free set of the product's variant IDs.
+- Rejects duplicate, missing and cross-product IDs with `ValidationException`.
+- Runs in a transaction with the product and variants locked, then assigns
+  positions `0..n-1` in the supplied order.
+- Never changes another product's variants.
+
+Verified on 2026-11-11:
+- `ProductVariantAdministrationTest.php` (27 tests, 95 assertions): contract
+  resolution, retrieval and scoping, creation, multiple variants, SKU and
+  variant-key uniqueness, generated SKUs, rollback, updates, inventory/movement
+  preservation, activation/deactivation, default and last-active protection,
+  positioning and policy authorization.
+- `ProductVariantResourceTest.php` (9 tests, 44 assertions): listing, creation,
+  validation, editing, activation/deactivation, default deactivation protection,
+  relation-manager visibility and HTTP access.
 
 ## Product retrieval and update
 
@@ -369,7 +445,18 @@ Product resource:
   fields the contract supports (name, description and an optional default-variant
   SKU). New products are active and draft, and receive a default variant.
 - Editing calls `UpdatesProducts` with `UpdateProductData` and shows the default
-  variant SKU read-only. Variant administration is not implemented in this task.
+  variant SKU read-only.
+- The `VariantsRelationManager` on the edit page lists variants with SKU, label,
+  variant key, status, position and creation date. Creation, editing,
+  activation/deactivation and drag reordering delegate to
+  `CreatesProductVariants`, `UpdatesProductVariants`,
+  `TransitionsProductVariantStatus` and `RepositionsProductVariants`.
+- Variant creation/editing forms expose SKU, label and `variant_key`; lifecycle
+  is controlled by explicit actions rather than a form toggle.
+- Deactivation is hidden for the default variant and for variants without another
+  active sibling.
+- The variant policy denies deletion, so the relation manager exposes no delete
+  action.
 - Header actions call `TransitionsProductStatus` for publish, unpublish, archive
   and restore, and are explicitly authorised with `publish`.
 - A `manageCategories` action calls `SyncsProductCategories` and is explicitly
@@ -405,19 +492,22 @@ Verified on 2026-11-11:
 - `CatalogAdminAuthorizationTest.php` (12 tests, 42 assertions): guest redirect,
   non-admin 403, admin access, `canAccessPanel()`, policy abilities for both
   resources, direct Livewire mount denial and absence of bulk actions.
-- Catalog Filament suite: 36 passed (135 assertions).
-- Catalog focused suite: 129 passed (394 assertions).
+- `ProductVariantResourceTest.php` (9 tests, 44 assertions): variant listing,
+  creation, validation, editing, activation/deactivation, default protection,
+  repositioning, relation-manager visibility and HTTP access.
+- Catalog Filament suite after Task 004: 45 passed (179 assertions).
+- Catalog focused suite after Task 004: 180 passed (570 assertions).
 
 Known limitations:
 - `UpdateProduct` treats a `null` description as "not provided", so the edit form
   cannot clear a description.
 - `UpdateCategory` treats a `null` parent as "not provided", so clearing a parent
   back to root is not supported through the form.
+- `UpdateProductVariant` treats a `null` label or variant key as "not provided",
+  so the form cannot clear them.
 - Admin access is a single boolean; granular roles and permissions are future
   work.
-- Variant administration (create/edit/deactivate variants, options, positions)
-  is not implemented; only the default variant is managed through product
-  creation.
+- Variant hard deletion is not exposed; variants are deactivated instead.
 - Attributes, media and pricing are not implemented.
 - Inventory is variant-keyed, but no Inventory administration or reporting UI
   exists.
@@ -428,8 +518,6 @@ These are not yet implemented or approved as final scope:
 - Brands.
 - Collections.
 - Attribute definitions, options and product/variant values.
-- Variant administration for multiple variants (the variant table, default
-  variant and model foundation are implemented).
 - Product media.
 - SEO metadata.
 - Product search metadata.
@@ -449,12 +537,16 @@ These are not yet implemented or approved as final scope:
 11. ~~Is there an authorised administration layer?~~ Verified: Filament 5 product and category resources with an explicit admin flag, module policies and contract-backed writes (2026-11-11).
 12. ~~What product fields are required for the first release?~~ Partially resolved: the variant-first foundation is implemented (DEC-019); brands, attributes, media and SEO remain future scope.
 13. ~~Are products variant-based from the beginning?~~ Yes. Every product owns at least one variant, and the variant is the canonical purchasable unit (DEC-019).
+14. ~~Can variants be administered safely?~~ Verified: retrieval, creation, update, activation/deactivation, default and last-active protection, product-scoped repositioning and Filament relation-manager administration (DEC-020, 2026-11-11).
 
 ## Acceptance criteria for the initial Catalog foundation
 
 - Product and category migrations execute through the project's normal migration workflow.
 - Product and category factories can create valid records.
 - Every product owns at least one variant, and product creation plus default-variant creation are atomic.
+- Additional variants can be created, updated, activated, deactivated and repositioned through Catalog contracts.
+- The default variant and the last active variant cannot be deactivated.
+- Variant administration preserves inventory and stock movement relationships.
 - Variant SKUs are globally unique when present, and variant keys are unique per product.
 - Existing products are backfilled with default variants idempotently.
 - Inventory and stock movements are keyed to variants without a dual stock path.

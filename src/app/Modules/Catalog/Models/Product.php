@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property int $id
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, ProductVariant> $variants
+ * @property-read ProductVariant|null $defaultVariant
  */
 final class Product extends Model
 {
@@ -58,5 +60,13 @@ final class Product extends Model
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);
+    }
+
+    /**
+     * @return HasOne<ProductVariant, $this>
+     */
+    public function defaultVariant(): HasOne
+    {
+        return $this->hasOne(ProductVariant::class)->oldestOfMany();
     }
 }
