@@ -87,6 +87,49 @@ Numbering note:
 DEC-014, DEC-015 and DEC-016 are recorded on `feature/inventory`. This decision
 uses DEC-017 to avoid duplicate IDs when the branches are integrated.
 
+### DEC-018 — Filament admin access is gated by an explicit admin flag and module policies
+**Status:** Confirmed
+**Date:** 2026-11-11
+**Branch:** `feature/catalog`
+
+Context:
+The Filament admin panel at `/admin` existed with authentication middleware but
+no authorization foundation. There were no roles, permissions or policies, and
+the Identity `User` model did not implement `FilamentUser`. Any authenticated
+user could therefore reach the panel. Catalog product and category management
+also needed an authorised delivery layer without moving business rules out of
+the module.
+
+Decision:
+- Identity users gain an `is_admin` boolean (default `false`) as the smallest
+  explicit admin foundation. `User` implements `FilamentUser` and
+  `canAccessPanel()` returns `$this->is_admin`.
+- Panel access is enforced by the panel's `Authenticate` middleware, independent
+  of navigation visibility.
+- Catalog owns `ProductPolicy` and `CategoryPolicy`; both require `is_admin` for
+  CRUD abilities. `ProductPolicy` additionally covers `publish` and
+  `manageCategories`.
+- Policies are registered with `Gate::policy()` in
+  `CatalogServiceProvider::bootModule()`.
+- Filament resources live under `src/app/Modules/Catalog/Filament/` and are
+  discovered by `AdminPanelProvider`. They call existing Catalog contracts for
+  every write; no business rules are duplicated in Filament or Livewire.
+- Custom lifecycle and category actions declare explicit `authorize()`
+  callbacks. No bulk delete actions are registered, so bulk operations cannot
+  bypass per-record policy checks.
+
+Rationale:
+An explicit boolean is the smallest change that makes admin access auditable and
+testable without inventing a role system prematurely. Keeping policies in the
+Catalog module preserves module ownership of product and category authorization.
+
+Consequences:
+- Admin access must be granted deliberately (seeder or direct database update).
+- A future roles/permissions system can replace `is_admin` behind the same
+  `canAccessPanel()` and policy boundaries.
+- New Catalog Filament actions must call module contracts and declare
+  authorization explicitly.
+
 ### DEC-015 — Inventory stock movement history is append-only
 **Status:** Confirmed for the Inventory foundation
 

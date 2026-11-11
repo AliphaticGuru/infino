@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product and category foundations complete; retrieval, update, publication lifecycle, product-category assignment and category retrieval/deletion verified
+**Status:** Product and category foundations complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -50,6 +50,24 @@ Category:
 - `Data/CreateCategoryData.php`
 - `Data/UpdateCategoryData.php`
 - `Support/UniqueSlug.php`
+
+Filament administration (Filament 5, module-owned):
+- `Filament/Resources/Products/ProductResource.php`
+- `Filament/Resources/Products/Schemas/ProductForm.php`
+- `Filament/Resources/Products/Tables/ProductsTable.php`
+- `Filament/Resources/Products/Pages/ListProducts.php`
+- `Filament/Resources/Products/Pages/CreateProduct.php`
+- `Filament/Resources/Products/Pages/EditProduct.php`
+- `Filament/Resources/Categories/CategoryResource.php`
+- `Filament/Resources/Categories/Schemas/CategoryForm.php`
+- `Filament/Resources/Categories/Tables/CategoriesTable.php`
+- `Filament/Resources/Categories/Pages/ListCategories.php`
+- `Filament/Resources/Categories/Pages/CreateCategory.php`
+- `Filament/Resources/Categories/Pages/EditCategory.php`
+
+Authorization:
+- `Policies/ProductPolicy.php`
+- `Policies/CategoryPolicy.php`
 
 Inventory:
 - `Models/Inventory.php`
@@ -280,6 +298,73 @@ Verified on 2026-11-10 with `src/tests/Feature/Catalog/CategoryRetrievalAndDelet
 - `ModelNotFoundException` when deleting an already-deleted category.
 - Child promotion to root after parent deletion.
 
+## Filament administration layer
+
+The first authorised Filament 5 administration layer lives inside the Catalog
+module and is discovered by `AdminPanelProvider` from
+`app/Modules/Catalog/Filament/Resources`.
+
+Access control:
+- Identity users carry an `is_admin` boolean (default `false`).
+- `User` implements `FilamentUser`; `canAccessPanel()` returns `is_admin`.
+- `ProductPolicy` and `CategoryPolicy` require `is_admin` for CRUD abilities.
+- `ProductPolicy` adds `publish` and `manageCategories`.
+- Policies are registered with `Gate::policy()` in
+  `CatalogServiceProvider::bootModule()`.
+
+Product resource:
+- Lists name, slug, publication status, categories and creation date with
+  search, status/category filters, sorting and pagination.
+- Creation calls `CreatesProducts` with `CreateProductData`; the form exposes the
+  fields the contract supports (name and description). New products are active
+  and draft, as defined by the contract.
+- Editing calls `UpdatesProducts` with `UpdateProductData`.
+- Header actions call `TransitionsProductStatus` for publish, unpublish, archive
+  and restore, and are explicitly authorised with `publish`.
+- A `manageCategories` action calls `SyncsProductCategories` and is explicitly
+  authorised with `manageCategories`. It covers assign, remove and replace in
+  one contract-backed flow.
+
+Category resource:
+- Lists name, slug, parent, active state, product count, child count and creation
+  date with search, active/parent filters, sorting and pagination.
+- Creation and editing call `CreatesCategories` and `UpdatesCategories`.
+- Deletion uses a Filament `DeleteAction` whose `using()` callback calls
+  `DeletesCategories`. Categories with assigned products are rejected by the
+  contract and remain intact; no implicit detachment occurs.
+- The parent selector excludes the record itself; descendant-cycle rejection is
+  enforced by `UpdateCategory`.
+
+Security and boundaries:
+- All writes route through Catalog contracts; Filament and Livewire contain no
+  duplicated business rules and never manipulate the pivot directly.
+- Custom actions declare explicit `authorize()` callbacks.
+- No bulk delete actions are registered, so bulk operations cannot bypass
+  per-record policy checks.
+- Panel access is enforced by the panel's `Authenticate` middleware and
+  `canAccessPanel()`, independently of navigation visibility.
+
+Verified on 2026-11-11:
+- `ProductResourceTest.php` (13 tests, 51 assertions): listing, search, status
+  filter, creation, validation, editing, publish/unpublish/archive/restore,
+  category assign/remove/replace and HTTP access.
+- `CategoryResourceTest.php` (11 tests, 42 assertions): listing, search, parent
+  visibility, creation, validation, editing, parent assignment, self-parent
+  rejection, deletion, deletion rejection with products and HTTP access.
+- `CatalogAdminAuthorizationTest.php` (12 tests, 42 assertions): guest redirect,
+  non-admin 403, admin access, `canAccessPanel()`, policy abilities for both
+  resources, direct Livewire mount denial and absence of bulk actions.
+- Catalog Filament suite: 36 passed (135 assertions).
+- Catalog focused suite: 129 passed (394 assertions).
+
+Known limitations:
+- `UpdateProduct` treats a `null` description as "not provided", so the edit form
+  cannot clear a description.
+- `UpdateCategory` treats a `null` parent as "not provided", so clearing a parent
+  back to root is not supported through the form.
+- Admin access is a single boolean; granular roles and permissions are future
+  work.
+
 ## Proposed future capabilities
 
 These are not yet implemented or approved as final scope:
@@ -303,8 +388,9 @@ These are not yet implemented or approved as final scope:
 8. ~~What does the product publication lifecycle require beyond `is_active`?~~ Verified: separate `status` enum with guarded transitions (DEC-017).
 9. ~~How are products assigned to categories?~~ Verified: assign, remove and sync actions with validation (2026-11-10).
 10. ~~Can categories be retrieved and deleted safely?~~ Verified: find by ID, pagination, category products and guarded deletion (2026-11-10).
-11. What product fields are required for the first release?
-12. Are products variant-based from the beginning?
+11. ~~Is there an authorised administration layer?~~ Verified: Filament 5 product and category resources with an explicit admin flag, module policies and contract-backed writes (2026-11-11).
+12. What product fields are required for the first release?
+13. Are products variant-based from the beginning?
 
 ## Acceptance criteria for the initial Catalog foundation
 
@@ -315,6 +401,7 @@ These are not yet implemented or approved as final scope:
 - Publication status is independent of `is_active` availability.
 - Product-category assignment, removal and synchronisation are validated and tested.
 - Category retrieval and deletion rules are validated and tested; assigned categories cannot be deleted.
+- The Filament administration layer is authorised, reuses module contracts and is covered by tests.
 - Slug uniqueness behavior is defined and tested.
 - Parent-child and product-category relationships are defined and tested.
 - Relevant Catalog tests pass.

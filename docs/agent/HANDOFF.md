@@ -1,15 +1,15 @@
 # Infino — Current Agent Handoff
 
-**Last updated:** 2026-11-10
+**Last updated:** 2026-11-11
 **Branch at last inspection:** `feature/catalog`
-**Latest commit at last inspection:** `565f8bd` — `feat(catalog): implement product-category assignment actions`
+**Latest commit at last inspection:** `0c5cc72` — `feat(catalog): Implemented category retrieval and safe category deletion operations`
 
 ## Objective
 
-Continue Catalog MVP work after category retrieval and deletion. The next concrete
-task is exposing Catalog management through an authorised delivery layer when a
-UI milestone begins, or defining the required first-release product fields and
-variant direction. Keep Identity, Cart, Checkout, Orders and Payments untouched.
+Continue Catalog MVP work after the first Filament administration layer. The next
+concrete task is defining the required first-release product fields and variant
+direction, or extending the admin layer with Inventory movement history once its
+scope is approved. Keep Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -25,8 +25,8 @@ variant direction. Keep Identity, Cart, Checkout, Orders and Payments untouched.
 
 ## Important repository protection
 
-The working tree contains uncommitted category retrieval and deletion work on top
-of the `565f8bd` commit.
+The working tree contains uncommitted Filament administration, Catalog policies
+and Identity admin-flag work on top of the `0c5cc72` commit.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
@@ -44,18 +44,25 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Application command pattern: `docker compose run --rm --no-deps cli <command>`.
 - Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
-- Catalog foundation, product retrieval/update, publication lifecycle, product-category assignment and category retrieval/deletion: verified.
+- Catalog foundation, product retrieval/update, publication lifecycle,
+  product-category assignment, category retrieval/deletion and the Filament
+  administration layer: verified.
 - Inventory foundation, movement history and read/reporting: verified.
-- Catalog focused suite: **93 passed (259 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)**.
+- Catalog Filament suite: **36 passed (135 assertions)**.
 - Inventory focused suite: **44 passed (147 assertions)**.
-- Full suite after category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
-- `CategoryRetrievalAndDeletionTest.php`: **13 passed (35 assertions)**.
-- `ProductCategoryAssignmentTest.php`: **18 passed (52 assertions)**.
-- Pint on Catalog/Inventory source and tests: passed.
-- PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
+- Full suite after the Filament administration layer: **204 passed, 3 failed (622 assertions)**.
+- `ProductResourceTest.php`: **13 passed (51 assertions)**.
+- `CategoryResourceTest.php`: **11 passed (42 assertions)**.
+- `CatalogAdminAuthorizationTest.php`: **12 passed (42 assertions)**.
+- Pint on changed source and tests: passed.
+- PHPStan on `app/Modules/Catalog`: no errors.
+- PHPStan on `app/Modules/Identity`: 3 pre-existing errors (Passkey contract and
+  `LogoutUser`/`LogOutUser` case).
 - Catalog migrations: `create_products_table` (batch 2); `create_categories_table`
   and `create_z_category_product_table` (batch 3); `z_add_status_to_products_table`
-  applied 2026-11-10.
+  applied 2026-11-10. The Identity `is_admin` migration is uncommitted and applies
+  through the normal module migration workflow.
 
 ## Known failures unrelated to Catalog and Inventory
 
@@ -101,6 +108,28 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
   - `is_active` remains an independent operational-availability flag.
   - Decision recorded as DEC-017 in `docs/agent/DECISIONS.md`.
 
+## Implemented Filament administration layer
+
+- Identity users carry an `is_admin` boolean; `User` implements `FilamentUser`
+  and `canAccessPanel()` returns the flag.
+- `ProductPolicy` and `CategoryPolicy` require `is_admin`; `ProductPolicy` adds
+  `publish` and `manageCategories`.
+- Policies are registered in `CatalogServiceProvider::bootModule()`.
+- `ProductResource` lists name, slug, status, categories and created date with
+  search, status/category filters, sorting and pagination.
+- Product creation/editing call `CreatesProducts`/`UpdatesProducts`.
+- Publish, unpublish, archive and restore call `TransitionsProductStatus` and are
+  explicitly authorised.
+- `manageCategories` calls `SyncsProductCategories` and is explicitly authorised;
+  it covers assign, remove and replace.
+- `CategoryResource` lists name, slug, parent, active state, product/child counts
+  and created date with search, active/parent filters, sorting and pagination.
+- Category creation/editing call `CreatesCategories`/`UpdatesCategories`.
+- Category deletion calls `DeletesCategories`; assigned products reject deletion
+  without implicit detachment.
+- No bulk delete actions are registered.
+- Decision recorded as DEC-018 in `docs/agent/DECISIONS.md`.
+
 ## Implemented Inventory capabilities
 
 - `Inventory` and `StockMovement` models, factories and migrations.
@@ -113,27 +142,29 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 ## Immediate task sequence
 
-### Option A — Authorised Catalog delivery
-
-- Expose product and category management (including lifecycle and category
-  assignment) through a future Filament resource or API resource.
-- Reuse `TransitionsProductStatus`, `AssignsProductCategories`,
-  `RemovesProductCategories`, `SyncsProductCategories`, `FindsCategories` and
-  `DeletesCategories`; do not duplicate business rules.
-- Add authorization and request-validation tests at that layer.
-
-### Option B — Define first-release product scope
+### Option A — Define first-release product scope
 
 - Decide required product fields and whether products are variant-based.
 - Record the decision in `DECISIONS.md` before expanding the schema.
+- Update the Filament product form only after the contract and data objects are
+  extended.
 
-### Option C — Expose Inventory movement history
+### Option B — Expose Inventory movement history
 
-- Add an authorised read layer (API resource or Filament page) over
+- Add an authorised read layer (Filament page or API resource) over
   `StockMovementReadService`.
 - Reuse the existing service filters and pagination; do not duplicate queries.
 - Add tests for filtering, pagination and access control.
 - Keep adjustment and movement-write behaviour unchanged.
+
+### Option C — Refine the Catalog admin layer
+
+- Add a product deletion action if product deletion is approved, routed through a
+  Catalog contract and explicitly authorised.
+- Add dedicated category assign/remove UI actions only if the single sync action
+  proves insufficient.
+- Replace the `is_admin` boolean with roles/permissions only when the requirement
+  is explicit; keep `canAccessPanel()` and policy boundaries stable.
 
 ### Later Inventory refinements
 

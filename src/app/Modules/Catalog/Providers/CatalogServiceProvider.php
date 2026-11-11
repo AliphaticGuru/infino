@@ -26,7 +26,12 @@ use App\Modules\Catalog\Contracts\SyncsProductCategories;
 use App\Modules\Catalog\Contracts\TransitionsProductStatus;
 use App\Modules\Catalog\Contracts\UpdatesCategories;
 use App\Modules\Catalog\Contracts\UpdatesProducts;
+use App\Modules\Catalog\Models\Category;
+use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Policies\CategoryPolicy;
+use App\Modules\Catalog\Policies\ProductPolicy;
 use App\Modules\Core\Providers\BaseModuleServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 final class CatalogServiceProvider extends BaseModuleServiceProvider
 {
@@ -86,5 +91,11 @@ final class CatalogServiceProvider extends BaseModuleServiceProvider
             DeletesCategories::class,
             DeleteCategory::class,
         );
+    }
+
+    protected function bootModule(): void
+    {
+        Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(Category::class, CategoryPolicy::class);
     }
 }

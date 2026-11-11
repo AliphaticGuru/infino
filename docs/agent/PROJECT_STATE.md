@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-10
-**Current branch at inspection:** `feature/inventory` (merge of `develop` in progress)
-**Latest commit at inspection:** `bc8fc03` — `feat(inventory): implemented inventory stock movement read & reporting`
+**Last inspected:** 2026-11-11
+**Current branch at inspection:** `feature/catalog`
+**Latest commit at inspection:** `0c5cc72` — `feat(catalog): Implemented category retrieval and safe category deletion operations`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -47,7 +47,7 @@ Observed files include:
 Core is declared as a dependency of Identity, Catalog and Inventory.
 
 ### Identity
-**Status:** Foundation committed; current working-tree changes need verification.
+**Status:** Foundation committed; admin flag and Filament panel access added in the working tree.
 
 Observed capabilities/files include:
 - User model.
@@ -56,13 +56,12 @@ Observed capabilities/files include:
 - User factory and migrations.
 - Identity service provider.
 - Fortify integration and feature tests.
+- `is_admin` boolean migration, `FilamentUser` implementation and `canAccessPanel()` on `User` (2026-11-11).
 
-The current working tree includes changes to the Identity User model, Fortify actions, validation concerns and authentication-related tests.
-
-Do not assume the current tests pass.
+The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product and category foundations complete; retrieval/update, publication lifecycle, product-category assignment and category retrieval/deletion verified with focused tests.
+**Status:** Product and category foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
@@ -72,6 +71,9 @@ Observed files include:
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory`, `UpdateCategory`, `FindCategory` and `DeleteCategory` actions, `CreatesCategories`, `UpdatesCategories`, `FindsCategories` and `DeletesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
 - Shared slug helper: `Support/UniqueSlug.php`.
+- Filament 5 administration: `Filament/Resources/Products/*` and `Filament/Resources/Categories/*` (resources, schemas, tables and pages).
+- Authorization: `Policies/ProductPolicy.php` and `Policies/CategoryPolicy.php`, registered with `Gate::policy()` in the module provider.
+- Panel resource discovery: `src/app/Providers/Filament/AdminPanelProvider.php`.
 
 The product implementation represents `name`, `slug`, `description`, `is_active` and `status`. Categories add `parent_id`, `name`, `slug`, `description` and `is_active`.
 
@@ -120,8 +122,26 @@ Verified on 2026-11-10 (category retrieval and deletion):
 - Deleting a parent category promotes children to root via the existing `nullOnDelete` behaviour.
 - Focused tests: `CategoryRetrievalAndDeletionTest.php` (13 tests, 35 assertions).
 
+Verified on 2026-11-11 (Filament administration layer):
+- The admin panel is reachable at `/admin`; guests are redirected to `/login`.
+- Identity users carry an `is_admin` boolean; `User` implements `FilamentUser` and `canAccessPanel()` returns the flag.
+- Non-admin authenticated users receive 403 at the panel and cannot mount Catalog resource pages directly.
+- `ProductPolicy` and `CategoryPolicy` require `is_admin`; `ProductPolicy` also covers `publish` and `manageCategories`.
+- Product listing supports search, status/category filters, sorting and pagination.
+- Product creation and editing call `CreatesProducts` and `UpdatesProducts`.
+- Product publish, unpublish, archive and restore call `TransitionsProductStatus` and are explicitly authorised.
+- Product category assignment, removal and replacement call `SyncsProductCategories` and are explicitly authorised.
+- Category listing supports search, active/parent filters, sorting and pagination, and shows parent, product count and child count.
+- Category creation and editing call `CreatesCategories` and `UpdatesCategories`.
+- Category deletion calls `DeletesCategories`; categories with products are rejected without implicit detachment.
+- No bulk delete actions are registered, so bulk operations cannot bypass authorization.
+- Focused tests: `ProductResourceTest.php` (13 tests, 51 assertions), `CategoryResourceTest.php` (11 tests, 42 assertions) and `CatalogAdminAuthorizationTest.php` (12 tests, 42 assertions).
+- Catalog Filament suite: 36 tests (135 assertions).
+
 Remaining gaps:
-- No publication lifecycle UI, API, Filament resource or Livewire component exists.
+- No product deletion action is exposed in the admin layer.
+- `UpdateProduct` cannot clear a description and `UpdateCategory` cannot clear a parent to root through the forms; both are existing contract limitations.
+- Admin access is a single boolean; roles and granular permissions are future work.
 - Required first-release fields and variant support remain undecided.
 - Names are not unique; duplicate names receive suffixed slugs.
 
@@ -200,13 +220,12 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-10 on `feature/catalog`.
+The repository was inspected on 2026-11-11 on `feature/catalog`.
 
-- `feature/catalog` HEAD is `565f8bd` (`feat(catalog): implement product-category assignment actions`).
-- The category retrieval and deletion implementation is uncommitted on top of that commit.
-- The working tree contains the new retrieval/deletion actions, contracts, tests and
-  documentation updates.
-- An empty, untracked `changes.patch` exists at the repository root and was not committed.
+- `feature/catalog` HEAD is `0c5cc72` (`feat(catalog): Implemented category retrieval and safe category deletion operations`).
+- The Filament administration layer, Catalog policies and Identity admin flag are uncommitted on top of that commit.
+- The working tree contains new Filament resources, policies, the `is_admin` migration and the new Catalog Filament tests, plus documentation updates.
+- Nothing from this task has been committed.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -220,7 +239,7 @@ Fix: the healthcheck now reads the container's own variables with `pg_isready -U
 
 ## 7. Test status
 
-Baseline and post-change full-suite results were captured on 2026-11-09 and 2026-11-10 using:
+Baseline and post-change full-suite results were captured on 2026-11-09, 2026-11-10 and 2026-11-11 using:
 
 ```bash
 docker compose run --rm --no-deps cli php artisan test --compact
@@ -235,14 +254,20 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After merging `feature/catalog` into `develop` (Catalog retrieval/update + publication lifecycle, Inventory foundation/history/read): **137 passed, 3 failed (400 assertions)**.
 - After product-category assignment: **155 passed, 3 failed (452 assertions)**.
 - After category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
-- Catalog focused suite: **93 passed (259 assertions)**.
+- After the Catalog Filament administration layer: **204 passed, 3 failed (622 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)**.
+- Catalog Filament suite: **36 passed (135 assertions)**.
 - Inventory focused suite: 44 passed (147 assertions).
 - `CategoryRetrievalAndDeletionTest.php`: 13 passed (35 assertions).
 - `ProductCategoryAssignmentTest.php`: 18 passed (52 assertions).
 - `ProductPublicationLifecycleTest.php`: 21 passed (46 assertions).
 - `StockMovementReadTest.php`: 14 passed (42 assertions).
-- PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
-- Full-project PHPStan: 23 pre-existing errors outside Catalog and Inventory.
+- `ProductResourceTest.php`: 13 passed (51 assertions).
+- `CategoryResourceTest.php`: 11 passed (42 assertions).
+- `CatalogAdminAuthorizationTest.php`: 12 passed (42 assertions).
+- PHPStan level 7 on `app/Modules/Catalog`: no errors.
+- PHPStan level 7 on `app/Modules/Identity`: 3 pre-existing errors (Passkey contract and `LogoutUser`/`LogOutUser` case).
+- Full-project PHPStan: 25 pre-existing errors outside Catalog and the Filament provider.
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -259,7 +284,7 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Expose Catalog product and category management through an authorised delivery layer when a UI milestone begins.
-4. Define required first-release product fields and variant direction before expanding the schema.
-5. Expose Inventory movement history and reporting through authorised HTTP or Filament layers.
+3. Define required first-release product fields and variant direction before expanding the schema.
+4. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
+5. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
 6. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.

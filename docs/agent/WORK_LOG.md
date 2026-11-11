@@ -2,6 +2,111 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-11 — Catalog Filament administration layer
+
+### Objective
+Add the first authorised Filament 5 administration layer for Catalog products and
+categories, reusing existing Catalog contracts and actions, with policies, panel
+access control, tests and documentation.
+
+### Work performed
+- Audited the existing Filament panel: `/admin` existed with authentication
+  middleware but no login page, policies, roles or admin flag, and the Identity
+  `User` model did not implement `FilamentUser`.
+- Added the Identity `is_admin` boolean migration, `FilamentUser` implementation
+  and `canAccessPanel()` on `User`, an `admin()` factory state and seeder flag.
+- Added `ProductPolicy` and `CategoryPolicy` in the Catalog module, registered
+  through `Gate::policy()` in `CatalogServiceProvider::bootModule()`.
+- Built `ProductResource` with listing (name, slug, status, categories, created
+  date), search, status/category filters, sorting and pagination.
+- Product creation uses `CreatesProducts`/`CreateProductData`; editing uses
+  `UpdatesProducts`/`UpdateProductData`.
+- Product lifecycle header actions call `TransitionsProductStatus` and are
+  explicitly authorised with `publish`.
+- Product category management uses one `manageCategories` action backed by
+  `SyncsProductCategories`, explicitly authorised with `manageCategories`.
+- Built `CategoryResource` with listing, search, parent column, active filter,
+  product/child counts and contract-backed create, edit and delete.
+- Category deletion uses `DeleteAction::make()->using(...)` routed through
+  `DeletesCategories`, so assigned products reject deletion without implicit
+  detachment.
+- Registered module resource discovery in `AdminPanelProvider`.
+- Added Pest coverage for product listing/search/filter/creation/editing/
+  lifecycle/category assignment/removal/replacement, category listing/search/
+  parent visibility/creation/editing/parent assignment/deletion/rejection, and
+  authorization (guest redirect, non-admin 403, direct Livewire denial, policy
+  abilities, absence of bulk actions).
+- Cleared stale compiled Blade views, which had caused
+  `RootTagMissingFromViewException` in Livewire tests.
+- Ran Pint and PHPStan on the changed application paths.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Filament/Resources/Products/ProductResource.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Schemas/ProductForm.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Tables/ProductsTable.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Pages/ListProducts.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Pages/CreateProduct.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Pages/EditProduct.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/CategoryResource.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/Schemas/CategoryForm.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/Tables/CategoriesTable.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/Pages/ListCategories.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/Pages/CreateCategory.php`
+- `src/app/Modules/Catalog/Filament/Resources/Categories/Pages/EditCategory.php`
+- `src/app/Modules/Catalog/Policies/ProductPolicy.php`
+- `src/app/Modules/Catalog/Policies/CategoryPolicy.php`
+- `src/app/Modules/Identity/Database/Migrations/2026_11_10_000000_add_is_admin_to_users_table.php`
+- `src/tests/Feature/Catalog/Filament/ProductResourceTest.php`
+- `src/tests/Feature/Catalog/Filament/CategoryResourceTest.php`
+- `src/tests/Feature/Catalog/Filament/CatalogAdminAuthorizationTest.php`
+
+Modified:
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php`
+- `src/app/Modules/Identity/Models/User.php`
+- `src/app/Modules/Identity/Database/Factories/UserFactory.php`
+- `src/app/Modules/Identity/Database/Seeders/IdentitySeeder.php`
+- `src/app/Providers/Filament/AdminPanelProvider.php`
+- `docs/agent/DECISIONS.md`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+
+### Tests and verification
+- `ProductResourceTest.php`: 13 passed (51 assertions).
+- `CategoryResourceTest.php`: 11 passed (42 assertions).
+- `CatalogAdminAuthorizationTest.php`: 12 passed (42 assertions).
+- Catalog Filament tests: 36 passed (135 assertions).
+- Catalog focused suite: 129 passed (394 assertions).
+- Full suite: 204 passed, 3 failed (622 assertions).
+- Pint on changed source and tests: passed.
+- PHPStan level 7 on the project config: no Catalog or Filament provider errors;
+  25 pre-existing errors remain outside this work (Core, Foundation, Livewire,
+  Identity, config).
+
+### Results
+- Admins can manage products and categories through `/admin` using existing
+  Catalog contracts and actions.
+- Non-admins receive 403 at the panel and cannot mount Catalog resource pages
+  directly.
+- Lifecycle and category actions are explicitly authorised.
+- No bulk actions exist that could bypass per-record authorization.
+
+### Outstanding issues
+- `UpdateProduct` treats `description === null` as "not provided", so the edit
+  form cannot clear a description; `UpdateCategory` has the same limitation for
+  clearing a parent to root. Both are existing contract limitations.
+- The three pre-existing full-suite failures remain (two-factor challenge
+  redirects and the post-create page null user).
+- Admin access is a single boolean; no roles/permissions granularity exists yet.
+- Category management is a single sync action; dedicated assign/remove UI
+  actions were not added.
+
+### Next action
+Define required first-release product fields and variant direction, or extend the
+admin layer with Inventory movement history once its scope is approved.
+
 ## 2026-11-10 — Catalog category retrieval and deletion implemented
 
 ### Objective

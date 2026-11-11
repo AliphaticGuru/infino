@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Identity\Models;
 
 use App\Modules\Identity\Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,13 +14,20 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Passkeys\PasskeyAuthenticatable;
 
-final class User extends Authenticatable
+/**
+ * @property int $id
+ * @property string $name
+ * @property string $email
+ * @property bool $is_admin
+ */
+final class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory;
+
     use Notifiable;
-    use TwoFactorAuthenticatable;
     use PasskeyAuthenticatable;
+    use TwoFactorAuthenticatable;
 
     protected $guarded = [];
 
@@ -31,8 +40,14 @@ final class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_admin' => 'boolean',
             'password' => 'hashed',
         ];
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->is_admin;
     }
 
     public function initials(): string
