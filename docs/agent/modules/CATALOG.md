@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product and category foundations complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified
+**Status:** Product, category, variant foundation and variant-keyed Inventory complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -29,10 +29,16 @@ Product:
 - `Data/CreateProductData.php`
 - `Data/UpdateProductData.php`
 - `Models/Product.php`
+- `Models/ProductVariant.php`
 - `Support/ProductStatus.php`
+- `Support/UniqueSku.php`
+- `Support/DefaultVariantBackfill.php`
 - `Database/Factories/ProductFactory.php`
+- `Database/Factories/ProductVariantFactory.php`
 - `Database/Migrations/create_products_table.php`
 - `Database/Migrations/z_add_status_to_products_table.php`
+- `Database/Migrations/z01_create_product_variants_table.php`
+- `Database/Migrations/z02_backfill_default_product_variants.php`
 
 Category:
 - `Models/Category.php`
@@ -69,23 +75,21 @@ Authorization:
 - `Policies/ProductPolicy.php`
 - `Policies/CategoryPolicy.php`
 
-Inventory:
-- `Models/Inventory.php`
-- `Models/StockMovement.php`
-- `Database/Factories/InventoryFactory.php`
-- `Database/Factories/StockMovementFactory.php`
-- `Database/Migrations/create_inventories_table.php`
-- `Database/Migrations/create_stock_movements_table.php`
-- `Actions/CreateInventory.php`
-- `Actions/AdjustStock.php`
-- `Contracts/CreatesInventory.php`
-- `Contracts/AdjustsStock.php`
-- `Data/CreateInventoryData.php`
-- `Data/AdjustStockData.php`
+Inventory (owned by the Inventory module, listed here only for the product boundary):
+- `App\Modules\Inventory\Models\Inventory` and `StockMovement`
+- `App\Modules\Inventory\Database\Migrations\z03_add_variant_id_to_inventories_table.php`
+- `App\Modules\Inventory\Database\Migrations\z04_add_variant_id_to_stock_movements_table.php`
+- `App\Modules\Inventory\Database\Migrations\z05_finalize_inventories_table.php`
+- `App\Modules\Inventory\Database\Migrations\z06_finalize_stock_movements_table.php`
+- `App\Modules\Inventory\Actions\CreateInventory` and `AdjustStock`
+- `App\Modules\Inventory\Contracts\CreatesInventory` and `AdjustsStock`
+- `App\Modules\Inventory\Data\CreateInventoryData` and `AdjustStockData`
 
-The service provider binds product, category and inventory contracts to their actions.
+The service provider binds product, category and variant contracts to their
+actions. Inventory contracts are bound by the Inventory module.
 
-The module manifest declares dependencies on Core and Catalog (Inventory).
+The module manifest declares a dependency on Core. Inventory declares
+dependencies on Core and Catalog.
 
 ## Current product data
 
@@ -108,9 +112,12 @@ The action currently:
 - Accepts `CreateProductData`.
 - Validates a required string name of at most 255 characters.
 - Accepts an optional nullable string description.
+- Accepts an optional `sku` for the default variant and rejects duplicate SKUs.
 - Generates a collision-safe slug from the product name via `Support\UniqueSlug` (`name`, `name-2`, `name-3`, ...).
 - Falls back to the slug `product` when the name has no slug characters.
-- Creates an active product with `draft` publication status.
+- Creates an active product with `draft` publication status and, in the same
+  transaction, one default `ProductVariant`.
+- Generates `SKU-{productId}` (collision-safe) when no SKU is supplied.
 - Returns the created Product model.
 
 Verified on 2026-11-09 with `src/tests/Feature/Catalog/ProductCreationTest.php`:
@@ -120,6 +127,49 @@ Verified on 2026-11-09 with `src/tests/Feature/Catalog/ProductCreationTest.php`:
 - Product creation, persistence and optional description handling.
 - Duplicate names receive unique slugs.
 - Validation rejects empty and over-length names.
+
+## Product variants
+
+The variant is the canonical purchasable unit. Every product owns at least one
+`ProductVariant`; a simple product has one default variant, and a variable
+product can have several.
+
+`product_variants` defines:
+- `id`
+- `product_id` foreign key to `products` with cascading delete
+- nullable `sku`, globally unique
+- nullable `label` (display name, for example `Red / M`)
+- nullable `variant_key`, unique per product
+- `is_active` boolean, default `true`
+- `position` integer, default `0`
+- timestamps
+- indexes on `(product_id, is_active)` and `(product_id, position)`
+
+Rules:
+- SKU is nullable in the database to allow drafts, but unique when present.
+  `CreateProduct` rejects duplicate SKUs through validation and generates a
+  collision-safe `SKU-{productId}` when none is supplied.
+- `variant_key` is a deterministic option signature such as `color:1|size:4`
+  and is unique per product. Multiple `null` keys are allowed.
+- `Product::variants()` is the owning relationship. Deleting a product cascades
+  to its variants, inventory records and stock movements.
+- Existing products are backfilled idempotently with one default variant by
+  `Support\DefaultVariantBackfill` (SKU `SKU-{productId}`, label `Default`,
+  `variant_key = null`, `position = 0`, `is_active` copied from the product).
+- `ProductFactory` creates a default variant by default and exposes
+  `withoutVariant()` for tests that need a product without one.
+
+The variant foundation deliberately does not include variant administration,
+attribute values, media or prices. Those remain later phases.
+
+Verified on 2026-11-11:
+- `ProductVariantFoundationTest.php` (10 tests): schema, factory, product
+  relationship, default variant from the product factory, `withoutVariant()`,
+  unique SKU, unique variant key per product, multiple null variant keys,
+  inactive state and product-delete cascade.
+- `ProductCreationTest.php` additions: atomic default-variant creation, custom
+  SKU, duplicate-SKU rejection, collision-safe generated SKU and product
+  rollback when variant creation fails.
 
 ## Product retrieval and update
 
@@ -313,12 +363,13 @@ Access control:
   `CatalogServiceProvider::bootModule()`.
 
 Product resource:
-- Lists name, slug, publication status, categories and creation date with
-  search, status/category filters, sorting and pagination.
+- Lists name, slug, publication status, categories, variant count, variant SKUs
+  and creation date with search, status/category filters, sorting and pagination.
 - Creation calls `CreatesProducts` with `CreateProductData`; the form exposes the
-  fields the contract supports (name and description). New products are active
-  and draft, as defined by the contract.
-- Editing calls `UpdatesProducts` with `UpdateProductData`.
+  fields the contract supports (name, description and an optional default-variant
+  SKU). New products are active and draft, and receive a default variant.
+- Editing calls `UpdatesProducts` with `UpdateProductData` and shows the default
+  variant SKU read-only. Variant administration is not implemented in this task.
 - Header actions call `TransitionsProductStatus` for publish, unpublish, archive
   and restore, and are explicitly authorised with `publish`.
 - A `manageCategories` action calls `SyncsProductCategories` and is explicitly
@@ -364,14 +415,21 @@ Known limitations:
   back to root is not supported through the form.
 - Admin access is a single boolean; granular roles and permissions are future
   work.
+- Variant administration (create/edit/deactivate variants, options, positions)
+  is not implemented; only the default variant is managed through product
+  creation.
+- Attributes, media and pricing are not implemented.
+- Inventory is variant-keyed, but no Inventory administration or reporting UI
+  exists.
 
 ## Proposed future capabilities
 
 These are not yet implemented or approved as final scope:
 - Brands.
 - Collections.
-- Attributes and attribute values.
-- Variants.
+- Attribute definitions, options and product/variant values.
+- Variant administration for multiple variants (the variant table, default
+  variant and model foundation are implemented).
 - Product media.
 - SEO metadata.
 - Product search metadata.
@@ -389,13 +447,17 @@ These are not yet implemented or approved as final scope:
 9. ~~How are products assigned to categories?~~ Verified: assign, remove and sync actions with validation (2026-11-10).
 10. ~~Can categories be retrieved and deleted safely?~~ Verified: find by ID, pagination, category products and guarded deletion (2026-11-10).
 11. ~~Is there an authorised administration layer?~~ Verified: Filament 5 product and category resources with an explicit admin flag, module policies and contract-backed writes (2026-11-11).
-12. What product fields are required for the first release?
-13. Are products variant-based from the beginning?
+12. ~~What product fields are required for the first release?~~ Partially resolved: the variant-first foundation is implemented (DEC-019); brands, attributes, media and SEO remain future scope.
+13. ~~Are products variant-based from the beginning?~~ Yes. Every product owns at least one variant, and the variant is the canonical purchasable unit (DEC-019).
 
 ## Acceptance criteria for the initial Catalog foundation
 
 - Product and category migrations execute through the project's normal migration workflow.
 - Product and category factories can create valid records.
+- Every product owns at least one variant, and product creation plus default-variant creation are atomic.
+- Variant SKUs are globally unique when present, and variant keys are unique per product.
+- Existing products are backfilled with default variants idempotently.
+- Inventory and stock movements are keyed to variants without a dual stock path.
 - Product and category actions persist the expected fields.
 - Product publication status defaults to draft and transitions are validated and tested.
 - Publication status is independent of `is_active` availability.

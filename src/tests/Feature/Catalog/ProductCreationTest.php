@@ -6,6 +6,7 @@ use App\Modules\Catalog\Contracts\CreatesProducts;
 use App\Modules\Catalog\Data\CreateProductData;
 use App\Modules\Catalog\Database\Factories\ProductFactory;
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Catalog\Providers\CatalogServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -125,4 +126,79 @@ test('create product action rejects names longer than 255 characters', function 
     ))->toThrow(ValidationException::class);
 
     $this->assertDatabaseCount('products', 0);
+});
+
+test('create product action creates a default variant', function () {
+    $product = app(CreatesProducts::class)->handle(
+        new CreateProductData(name: 'Wireless Headphones'),
+    );
+
+    $variant = $product->variants()->sole();
+
+    expect($variant)->toBeInstanceOf(ProductVariant::class)
+        ->and($variant->product_id)->toBe($product->id)
+        ->and($variant->sku)->toBe('SKU-'.$product->id)
+        ->and($variant->label)->toBe('Default')
+        ->and($variant->variant_key)->toBeNull()
+        ->and($variant->is_active)->toBeTrue()
+        ->and($variant->position)->toBe(0);
+
+    $this->assertDatabaseHas('product_variants', [
+        'id' => $variant->id,
+        'product_id' => $product->id,
+        'sku' => 'SKU-'.$product->id,
+    ]);
+});
+
+test('create product action accepts a custom default variant sku', function () {
+    $product = app(CreatesProducts::class)->handle(
+        new CreateProductData(name: 'Custom SKU Product', sku: 'CUSTOM-001'),
+    );
+
+    expect($product->variants()->sole()->sku)->toBe('CUSTOM-001');
+});
+
+test('create product action rejects a duplicate sku', function () {
+    $action = app(CreatesProducts::class);
+
+    $action->handle(new CreateProductData(name: 'First Product', sku: 'DUP-001'));
+
+    expect(fn () => $action->handle(
+        new CreateProductData(name: 'Second Product', sku: 'DUP-001'),
+    ))->toThrow(ValidationException::class);
+
+    $this->assertDatabaseCount('products', 1);
+    $this->assertDatabaseCount('product_variants', 1);
+});
+
+test('create product action generates a collision-safe sku', function () {
+    $action = app(CreatesProducts::class);
+
+    $first = $action->handle(
+        new CreateProductData(name: 'First Product', sku: 'SKU-2'),
+    );
+    $second = $action->handle(
+        new CreateProductData(name: 'Second Product'),
+    );
+
+    expect($first->variants()->sole()->sku)->toBe('SKU-2')
+        ->and($second->id)->toBe(2)
+        ->and($second->variants()->sole()->sku)->toBe('SKU-2-2');
+});
+
+test('create product action rolls back the product when variant creation fails', function () {
+    ProductVariant::creating(function (): void {
+        throw new RuntimeException('Forced variant creation failure.');
+    });
+
+    try {
+        expect(fn () => app(CreatesProducts::class)->handle(
+            new CreateProductData(name: 'Rollback Product'),
+        ))->toThrow(RuntimeException::class);
+    } finally {
+        ProductVariant::flushEventListeners();
+    }
+
+    $this->assertDatabaseCount('products', 0);
+    $this->assertDatabaseCount('product_variants', 0);
 });

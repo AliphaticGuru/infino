@@ -20,6 +20,7 @@ final class CreateProduct extends CreateRecord
             new CreateProductData(
                 name: $data['name'],
                 description: $data['description'] ?? null,
+                sku: $data['sku'] ?? null,
             ),
         );
     }

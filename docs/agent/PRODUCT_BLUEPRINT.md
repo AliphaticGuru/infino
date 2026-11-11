@@ -1,7 +1,7 @@
 # Infino — Product Blueprint
 
 **Document status:** Initial baseline  
-**Last reviewed:** 2026-11-08
+**Last reviewed:** 2026-11-11
 
 ## 1. Product vision
 
@@ -52,7 +52,7 @@ Potential capabilities:
 - Categories and subcategories.
 - Brands and collections.
 - Product attributes and attribute values.
-- Product variants.
+- Product variants (variant-first foundation implemented; see DEC-019).
 - Product media and galleries.
 - Search metadata and SEO fields.
 
@@ -68,7 +68,7 @@ Potential capabilities:
 - Stock reservation and release.
 - Inventory reporting.
 
-Inventory is a proposed separate business capability. Its final boundary and relationship with product variants require a decision.
+Inventory is a separate business capability. DEC-019 resolves its relationship with product variants: stock and movements are keyed to variants, and the variant is the canonical purchasable unit.
 
 ### 3.4 Pricing and promotions
 Potential capabilities:
@@ -267,7 +267,7 @@ The following journeys need detailed acceptance criteria before their full imple
 - Whether the platform supports multiple independent stores or merchants.
 - Whether multi-tenancy is required.
 - Whether products are physical, digital or both.
-- Product variant and inventory rules.
+- Product variant and inventory rules (variant-first architecture and variant-keyed inventory decided in DEC-019; attributes, pricing and reservation rules remain open).
 - Supported payment providers.
 - Shipping and fulfilment model.
 - Tax and currency requirements.

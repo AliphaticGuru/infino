@@ -47,7 +47,7 @@ final class AdjustStock implements AdjustsStock
             $lockedInventory->save();
 
             StockMovement::create([
-                'product_id' => $lockedInventory->product_id,
+                'variant_id' => $lockedInventory->variant_id,
                 'location' => $lockedInventory->location,
                 'quantity_delta' => $validated['quantity_delta'],
                 'resulting_quantity' => $newQuantity,

@@ -2,7 +2,7 @@
 
 **Last inspected:** 2026-11-11
 **Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `0c5cc72` — `feat(catalog): Implemented category retrieval and safe category deletion operations`
+**Latest commit at inspection:** `636b0fc` — `feat(catalog): implemented catalog filament administration`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -61,12 +61,13 @@ Observed capabilities/files include:
 The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product and category foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion and the first Filament admin layer verified with focused tests.
+**Status:** Product, category and variant foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, the first Filament admin layer and the variant-first Inventory re-key verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
 - Product: `CreateProduct`, `FindProduct`, `UpdateProduct`, `TransitionProductStatus`, `AssignProductCategories`, `RemoveProductCategories` and `SyncProductCategories` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts`, `TransitionsProductStatus`, `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
+- Product variants: `ProductVariant` model, `ProductVariantFactory`, `z01_create_product_variants_table.php`, `z02_backfill_default_product_variants.php`, `Support/UniqueSku.php` and `Support/DefaultVariantBackfill.php`.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory`, `UpdateCategory`, `FindCategory` and `DeleteCategory` actions, `CreatesCategories`, `UpdatesCategories`, `FindsCategories` and `DeletesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
@@ -75,7 +76,7 @@ Observed files include:
 - Authorization: `Policies/ProductPolicy.php` and `Policies/CategoryPolicy.php`, registered with `Gate::policy()` in the module provider.
 - Panel resource discovery: `src/app/Providers/Filament/AdminPanelProvider.php`.
 
-The product implementation represents `name`, `slug`, `description`, `is_active` and `status`. Categories add `parent_id`, `name`, `slug`, `description` and `is_active`.
+The product implementation represents `name`, `slug`, `description`, `is_active` and `status`. Categories add `parent_id`, `name`, `slug`, `description` and `is_active`. Variants add `product_id`, nullable unique `sku`, nullable `label`, nullable `variant_key`, `is_active`, `position` and timestamps.
 
 Verified on 2026-11-09:
 - Catalog migrations are discovered through `BaseModuleServiceProvider::loadModuleMigrations()` and execute under `RefreshDatabase` and PostgreSQL.
@@ -138,6 +139,18 @@ Verified on 2026-11-11 (Filament administration layer):
 - Focused tests: `ProductResourceTest.php` (13 tests, 51 assertions), `CategoryResourceTest.php` (11 tests, 42 assertions) and `CatalogAdminAuthorizationTest.php` (12 tests, 42 assertions).
 - Catalog Filament suite: 36 tests (135 assertions).
 
+Verified on 2026-11-11 (variant foundation and Inventory re-key):
+- Every product owns at least one `ProductVariant`; the variant is the canonical purchasable unit.
+- `product_variants` stores `product_id`, nullable globally unique `sku`, nullable `label`, nullable `variant_key`, `is_active`, `position` and timestamps, with unique `(product_id, variant_key)` and supporting indexes.
+- `CreateProduct` creates the product and a default variant atomically; optional SKU input is validated for uniqueness and a collision-safe `SKU-{productId}` is generated when omitted.
+- Existing products are backfilled idempotently with a default variant; duplicate defaults are prevented.
+- `ProductFactory` creates a default variant by default and exposes `withoutVariant()`.
+- Inventory and stock movements are keyed to `variant_id`; product-level reporting joins through `product_variants`.
+- Existing inventory and movement rows were mapped to their product's default variant with IDs, quantities, history and timestamps preserved.
+- Focused tests: `ProductVariantFoundationTest.php` (10 tests, 19 assertions), `ProductCreationTest.php` (14 tests, 46 assertions), `InventoryFoundationTest.php` (18 tests, 51 assertions), `StockMovementTest.php` (15 tests, 62 assertions) and `StockMovementReadTest.php` (19 tests, 61 assertions).
+- Catalog focused suite: 144 passed (431 assertions). Inventory focused suite: 52 passed (174 assertions).
+- Fresh PostgreSQL `migrate:fresh` and rollback/re-apply of the new migrations verified on a throwaway database.
+
 Remaining gaps:
 - No product deletion action is exposed in the admin layer.
 - `UpdateProduct` cannot clear a description and `UpdateCategory` cannot clear a parent to root through the forms; both are existing contract limitations.
@@ -146,7 +159,7 @@ Remaining gaps:
 - Names are not unique; duplicate names receive suffixed slugs.
 
 ### Inventory
-**Status:** Stock foundation and append-only movement history complete and verified with focused tests.
+**Status:** Variant-keyed stock foundation and append-only movement history complete and verified with focused tests.
 
 Observed files include:
 - `InventoryServiceProvider`
@@ -154,53 +167,58 @@ Observed files include:
 - `Inventory` and `StockMovement` models
 - `InventoryFactory` and `StockMovementFactory`
 - `create_inventories_table.php` and `create_stock_movements_table.php` migrations
+- `z03_add_variant_id_to_inventories_table.php`, `z04_add_variant_id_to_stock_movements_table.php`, `z05_finalize_inventories_table.php` and `z06_finalize_stock_movements_table.php` migrations
 - `CreateInventory` and `AdjustStock` actions
 - `CreatesInventory` and `AdjustsStock` contracts
 - `CreateInventoryData` and `AdjustStockData`
 - `StockMovementReadService` (read-only retrieval and reporting)
 
-The `inventories` table represents a stock record per product and location:
+The `inventories` table represents a stock record per product variant and location:
 - `id`
-- `product_id` foreign key to Catalog `products` with cascading delete
+- `variant_id` foreign key to Catalog `product_variants` with cascading delete
 - `location` (default `default`)
 - `quantity` integer (default `0`)
 - timestamps
-- unique `(product_id, location)`
+- unique `(variant_id, location)`
 
 The `stock_movements` table is append-only:
 - `id`
-- `product_id` foreign key to Catalog `products` with cascading delete
+- `variant_id` foreign key to Catalog `product_variants` with cascading delete
 - `location` (snapshot at adjustment time)
 - `quantity_delta` signed integer
 - `resulting_quantity` integer
 - `reason` string
 - nullable `reference` string
 - `created_at` only; no `updated_at`
-- indexes on `(product_id, location)` and `(product_id, created_at)`
+- indexes on `(variant_id, location)` and `(variant_id, created_at)`
 
 Verified on 2026-11-09:
 - The Inventory module is discovered and its provider is registered.
 - `CreatesInventory` and `AdjustsStock` resolve to their actions.
 - Inventory and stock movement factories resolve and persist records.
-- Initial stock creation validates product existence, location, and non-negative quantity.
-- A product may have multiple inventory records, one per location; duplicate product/location pairs are rejected.
+- Initial stock creation validates variant existence, location, and non-negative quantity.
+- A variant may have multiple inventory records, one per location; duplicate variant/location pairs are rejected.
 - Stock adjustments increase and decrease quantity atomically inside a transaction with `lockForUpdate`.
 - Adjustments that would produce negative stock, and zero adjustments, are rejected.
-- Adjustments are isolated per location.
-- Every successful adjustment writes a movement with the product, location, signed delta, resulting quantity, reason, optional reference and creation timestamp in the same transaction.
+- Adjustments are isolated per location and per variant of the same product.
+- Every successful adjustment writes a movement with the variant, location, signed delta, resulting quantity, reason, optional reference and creation timestamp in the same transaction.
 - Failed, rejected and zero adjustments write no movement.
 - Movement persistence failure rolls back the stock update; outer transaction rollback reverts both.
 - Movement records have no update or delete operations and no updated timestamp.
-- Deleting a product cascades to its inventory records and stock movements.
-- Movement history is retrievable through `StockMovementReadService` with pagination (default 20, newest first), product filtering, reason filtering and inclusive date-range filtering.
-- Per-product movement history reuses the same paginated query.
-- Daily summaries derive increase and decrease totals from recorded movements and accept optional product and date-range filters.
+- Deleting a product or variant cascades to its inventory records and stock movements.
+- Movement history is retrievable through `StockMovementReadService` with pagination (default 20, newest first), variant/product filtering, reason filtering and inclusive date-range filtering.
+- Per-product history joins through variants; `forVariant()` filters a single variant.
+- Daily summaries derive increase and decrease totals from recorded movements and accept optional variant/product and date-range filters.
 - Read operations never modify inventory or movement records.
-- Focused tests: `InventoryFoundationTest.php` (16 tests, 46 assertions), `StockMovementTest.php` (14 tests, 59 assertions) and `StockMovementReadTest.php` (14 tests, 42 assertions).
+- Focused tests: `InventoryFoundationTest.php` (18 tests, 51 assertions), `StockMovementTest.php` (15 tests, 62 assertions) and `StockMovementReadTest.php` (19 tests, 61 assertions).
+
+Verified on 2026-11-11 (variant re-key):
+- Existing `inventories` and `stock_movements` rows were migrated to their product's default variant with IDs, quantities, history and timestamps preserved.
+- The development database preserved 2 products, 2 default variants, 1 inventory record and 1 movement through the migration.
+- Fresh PostgreSQL `migrate:fresh` succeeded, and the new migrations rolled back and re-applied cleanly on a throwaway database.
 
 Remaining gaps:
 - Stock reservations, release, low-stock thresholds and location management actions are not implemented.
-- Inventory assumes Catalog products without variants; variant-level inventory remains open.
 - Reporting is daily-grouped only; no per-location or per-reason breakdown exists.
 - No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
 
@@ -222,12 +240,24 @@ Inspect the module infrastructure before changing loading behavior.
 
 The repository was inspected on 2026-11-11 on `feature/catalog`.
 
-- `feature/catalog` HEAD is `0c5cc72` (`feat(catalog): Implemented category retrieval and safe category deletion operations`).
-- The Filament administration layer, Catalog policies and Identity admin flag are uncommitted on top of that commit.
-- The working tree contains new Filament resources, policies, the `is_admin` migration and the new Catalog Filament tests, plus documentation updates.
-- Nothing from this task has been committed.
+- `feature/catalog` HEAD is `636b0fc` (`feat(catalog): implemented catalog filament administration`).
+- The Filament administration layer, Catalog policies and Identity admin flag are committed at that HEAD.
+- The working tree contains the uncommitted Task 003 variant foundation and Inventory re-key: new migrations, models, factories, support classes, tests and documentation updates.
+- The `2026_11_10_000000_add_is_admin_to_users_table` migration and the new Catalog/Inventory migrations have been applied to the development PostgreSQL database.
+- Nothing from Task 003 has been committed.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
+
+### Working-tree integrity note (2026-11-11)
+
+Four tracked files (`app/Foundation/Modules/ModuleManager.php`,
+`ModuleManifest.php`, `ModuleRepository.php` and
+`app/Console/Commands/MakeModuleCommand.php`) were observed to be NUL-byte
+corrupted on disk while Git's stat cache still reported them unchanged. They
+were restored byte-for-byte from `HEAD`; no user work was discarded. The
+application booted and the full suite ran normally afterwards. Re-verify tracked
+files with `git hash-object` against the index if unexpected class-not-found
+errors appear.
 
 ## 6. Resolved environment warning
 
@@ -255,19 +285,24 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After product-category assignment: **155 passed, 3 failed (452 assertions)**.
 - After category retrieval and deletion: **168 passed, 3 failed (487 assertions)**.
 - After the Catalog Filament administration layer: **204 passed, 3 failed (622 assertions)**.
-- Catalog focused suite: **129 passed (394 assertions)**.
+- After Task 003 (variant foundation + Inventory variant re-key): **227 passed, 3 failed (686 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003.
 - Catalog Filament suite: **36 passed (135 assertions)**.
-- Inventory focused suite: 44 passed (147 assertions).
+- Inventory focused suite: 44 passed (147 assertions) before Task 003; **52 passed (174 assertions)** after Task 003.
+- `ProductVariantFoundationTest.php`: 10 passed (19 assertions).
+- `ProductCreationTest.php`: 14 passed (46 assertions).
+- `InventoryFoundationTest.php`: 18 passed (51 assertions).
+- `StockMovementTest.php`: 15 passed (62 assertions).
+- `StockMovementReadTest.php`: 14 passed (42 assertions) before Task 003; 19 passed (61 assertions) after Task 003.
 - `CategoryRetrievalAndDeletionTest.php`: 13 passed (35 assertions).
 - `ProductCategoryAssignmentTest.php`: 18 passed (52 assertions).
 - `ProductPublicationLifecycleTest.php`: 21 passed (46 assertions).
-- `StockMovementReadTest.php`: 14 passed (42 assertions).
 - `ProductResourceTest.php`: 13 passed (51 assertions).
 - `CategoryResourceTest.php`: 11 passed (42 assertions).
 - `CatalogAdminAuthorizationTest.php`: 12 passed (42 assertions).
-- PHPStan level 7 on `app/Modules/Catalog`: no errors.
+- PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
 - PHPStan level 7 on `app/Modules/Identity`: 3 pre-existing errors (Passkey contract and `LogoutUser`/`LogOutUser` case).
-- Full-project PHPStan: 25 pre-existing errors outside Catalog and the Filament provider.
+- Full-project PHPStan: 21 pre-existing errors outside Catalog and Inventory (Livewire, Core, Foundation, Identity and config).
 
 Remaining failures:
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
@@ -284,7 +319,9 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Define required first-release product fields and variant direction before expanding the schema.
-4. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
-5. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
-6. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
+3. Build variant administration (create/edit/deactivate variants) on top of the variant foundation.
+4. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
+5. Implement attributes/options, then media, then the Pricing module, in that order.
+6. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
+7. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
+8. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.

@@ -34,6 +34,13 @@ final class ProductsTable
                     ->badge()
                     ->separator(', ')
                     ->limitList(3),
+                TextColumn::make('variants_count')
+                    ->counts('variants')
+                    ->label('Variants'),
+                TextColumn::make('variants.sku')
+                    ->label('SKUs')
+                    ->limitList(3)
+                    ->toggleable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

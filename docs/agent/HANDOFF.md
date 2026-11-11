@@ -2,14 +2,18 @@
 
 **Last updated:** 2026-11-11
 **Branch at last inspection:** `feature/catalog`
-**Latest commit at last inspection:** `0c5cc72` — `feat(catalog): Implemented category retrieval and safe category deletion operations`
+**Latest commit at last inspection:** `636b0fc` — `feat(catalog): implemented catalog filament administration`
 
 ## Objective
 
-Continue Catalog MVP work after the first Filament administration layer. The next
-concrete task is defining the required first-release product fields and variant
-direction, or extending the admin layer with Inventory movement history once its
-scope is approved. Keep Cart, Checkout, Orders and Payments untouched.
+Continue Catalog MVP work from the completed variant foundation. Task 003
+introduced `ProductVariant` as the canonical purchasable unit, created a default
+variant for every product and re-keyed Inventory from `product_id` to
+`variant_id` without losing data.
+
+The next concrete task is variant administration: create, edit, deactivate and
+position multiple variants per product behind Catalog contracts and policies.
+Keep Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -18,15 +22,16 @@ scope is approved. Keep Cart, Checkout, Orders and Payments untouched.
 3. `docs/agent/PRODUCT_BLUEPRINT.md`
 4. `docs/agent/PROJECT_STATE.md`
 5. `docs/agent/ROADMAP.md`
-6. `docs/agent/DECISIONS.md`
+6. `docs/agent/DECISIONS.md` (especially DEC-019)
 7. `docs/agent/modules/CATALOG.md`
-8. This handoff.
-9. `src/AGENTS.md` before Laravel application changes.
+8. `docs/agent/tasks/active/003-catalog-variant-foundation-and-inventory-rekey.md`
+9. This handoff.
+10. `src/AGENTS.md` before Laravel application changes.
 
 ## Important repository protection
 
-The working tree contains uncommitted Filament administration, Catalog policies
-and Identity admin-flag work on top of the `0c5cc72` commit.
+The working tree contains the uncommitted Task 003 variant foundation and
+Inventory re-key on top of `636b0fc`. This work is not committed.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
@@ -36,6 +41,21 @@ Do not:
 
 Run `git status --short` again before doing anything. The recorded state is historical.
 
+### Working-tree integrity warning
+
+Four tracked Foundation files were found NUL-byte corrupted on disk on
+2026-11-11 while Git's stat cache still reported them unchanged. They were
+restored byte-for-byte from `HEAD`:
+
+- `src/app/Foundation/Modules/ModuleManager.php`
+- `src/app/Foundation/Modules/ModuleManifest.php`
+- `src/app/Foundation/Modules/ModuleRepository.php`
+- `src/app/Console/Commands/MakeModuleCommand.php`
+
+No user work was discarded. If unexpected class-not-found errors appear, compare
+tracked files with `git hash-object <file>` against the index before assuming a
+logic bug.
+
 ## Current verified context
 
 - Docker Desktop must be running.
@@ -44,25 +64,19 @@ Run `git status --short` again before doing anything. The recorded state is hist
 - Application command pattern: `docker compose run --rm --no-deps cli <command>`.
 - Compose configuration loads without warnings; `infino-db` is healthy.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
-- Catalog foundation, product retrieval/update, publication lifecycle,
-  product-category assignment, category retrieval/deletion and the Filament
-  administration layer: verified.
-- Inventory foundation, movement history and read/reporting: verified.
-- Catalog focused suite: **129 passed (394 assertions)**.
-- Catalog Filament suite: **36 passed (135 assertions)**.
-- Inventory focused suite: **44 passed (147 assertions)**.
-- Full suite after the Filament administration layer: **204 passed, 3 failed (622 assertions)**.
-- `ProductResourceTest.php`: **13 passed (51 assertions)**.
-- `CategoryResourceTest.php`: **11 passed (42 assertions)**.
-- `CatalogAdminAuthorizationTest.php`: **12 passed (42 assertions)**.
-- Pint on changed source and tests: passed.
-- PHPStan on `app/Modules/Catalog`: no errors.
-- PHPStan on `app/Modules/Identity`: 3 pre-existing errors (Passkey contract and
-  `LogoutUser`/`LogOutUser` case).
-- Catalog migrations: `create_products_table` (batch 2); `create_categories_table`
-  and `create_z_category_product_table` (batch 3); `z_add_status_to_products_table`
-  applied 2026-11-10. The Identity `is_admin` migration is uncommitted and applies
-  through the normal module migration workflow.
+- Catalog product/category foundations, retrieval/update, publication lifecycle,
+  product-category assignment, category retrieval/deletion, the Filament admin
+  layer and the variant-first foundation: verified.
+- Inventory variant-keyed stock, movement history and read/reporting: verified.
+- Catalog focused suite: **144 passed (431 assertions)**.
+- Inventory focused suite: **52 passed (174 assertions)**.
+- Full suite after Task 003: **227 passed, 3 failed (686 assertions)**.
+- Pint on changed Catalog/Inventory source and tests: passed.
+- PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
+- Full-project PHPStan: 21 pre-existing errors outside Catalog/Inventory.
+- Fresh PostgreSQL `migrate:fresh` verified on a throwaway database.
+- New migrations roll back (`--step=7`) and re-apply cleanly.
+- Development PostgreSQL migration applied; existing data preserved.
 
 ## Known failures unrelated to Catalog and Inventory
 
@@ -77,36 +91,34 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - `Product` and `Category` models, factories, migrations and relationships.
 - `CreateProduct`, `FindProduct`, `UpdateProduct` and `TransitionProductStatus` actions and contracts.
 - `CreateCategory` and `UpdateCategory` actions and contracts.
-- Category retrieval and deletion:
-  - `FindsCategories` contract and `FindCategory` action: `find`, paginated
-    categories and a category's paginated products (20 per page by default).
-  - `DeletesCategories` contract and `DeleteCategory` action.
-  - Deletion is transactional and rejects categories with assigned products via
-    `ValidationException`, leaving pivot rows intact.
-  - Unassigned categories are deleted; children are promoted to root through the
-    existing `parent_id` `nullOnDelete` behaviour.
-- Collision-safe product and category slugs through `Support\UniqueSlug`,
-  including rename handling.
+- Category retrieval and deletion through `FindsCategories`/`FindCategory` and
+  `DeletesCategories`/`DeleteCategory`; deletion is transactional, rejects
+  categories with products and promotes children to root.
+- Collision-safe product and category slugs through `Support\UniqueSlug`.
 - Self-referencing category hierarchy with `nullOnDelete`.
 - Many-to-many product-category relationship through `category_product`.
-- Product-category assignment:
-  - `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts and actions.
-  - Assign attaches without detaching and is idempotent for duplicates.
-  - Remove detaches selected categories and safely ignores unassigned IDs.
-  - Sync replaces assignments; an empty array clears all.
-  - Invalid or nonexistent category IDs raise `ValidationException` without partial changes.
-  - Deleted or unpersisted products raise `ModelNotFoundException`.
-- Product publication lifecycle:
-  - `Support\ProductStatus` backed enum (`draft`, `published`, `archived`).
-  - `TransitionsProductStatus` contract and `TransitionProductStatus` action.
-  - Operations: `publish`, `unpublish`, `archive`, `restore`.
-  - Transition matrix: draft→published/archived, published→draft/archived,
-    archived→draft only.
-  - Invalid transitions raise `ValidationException`; missing products raise
-    `ModelNotFoundException`.
-  - Transitions run in a transaction and preserve unrelated attributes.
-  - `is_active` remains an independent operational-availability flag.
-  - Decision recorded as DEC-017 in `docs/agent/DECISIONS.md`.
+- Product-category assignment through `AssignsProductCategories`,
+  `RemovesProductCategories` and `SyncsProductCategories`.
+- Product publication lifecycle through `Support\ProductStatus` and
+  `TransitionsProductStatus` (DEC-017).
+
+## Implemented variant foundation (Task 003)
+
+- `ProductVariant` model, `ProductVariantFactory` and `Product::variants()`.
+- `product_variants` schema: `product_id` (cascade), nullable globally unique
+  `sku`, nullable `label`, nullable `variant_key` unique per product,
+  `is_active`, `position`, timestamps and supporting indexes.
+- `Support\UniqueSku` generates collision-safe SKUs.
+- `Support\DefaultVariantBackfill` backfills one default variant per existing
+  product idempotently.
+- `CreateProductData` accepts an optional `sku`; `CreateProduct` validates SKU
+  uniqueness and creates the product plus default variant in one transaction,
+  generating `SKU-{productId}` when no SKU is supplied.
+- `ProductFactory` creates a default variant by default and exposes
+  `withoutVariant()`.
+- Filament product admin accepts an optional default-variant SKU on create,
+  shows it read-only on edit and displays variant count/SKU columns.
+- Decision recorded as DEC-019 in `docs/agent/DECISIONS.md`.
 
 ## Implemented Filament administration layer
 
@@ -115,77 +127,91 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - `ProductPolicy` and `CategoryPolicy` require `is_admin`; `ProductPolicy` adds
   `publish` and `manageCategories`.
 - Policies are registered in `CatalogServiceProvider::bootModule()`.
-- `ProductResource` lists name, slug, status, categories and created date with
-  search, status/category filters, sorting and pagination.
-- Product creation/editing call `CreatesProducts`/`UpdatesProducts`.
-- Publish, unpublish, archive and restore call `TransitionsProductStatus` and are
-  explicitly authorised.
-- `manageCategories` calls `SyncsProductCategories` and is explicitly authorised;
-  it covers assign, remove and replace.
-- `CategoryResource` lists name, slug, parent, active state, product/child counts
-  and created date with search, active/parent filters, sorting and pagination.
-- Category creation/editing call `CreatesCategories`/`UpdatesCategories`.
-- Category deletion calls `DeletesCategories`; assigned products reject deletion
-  without implicit detachment.
+- `ProductResource` lists name, slug, status, categories, variant count/SKUs and
+  created date with search, filters, sorting and pagination.
+- Product creation/editing call `CreatesProducts`/`UpdatesProducts`; publish,
+  unpublish, archive and restore call `TransitionsProductStatus`.
+- `manageCategories` calls `SyncsProductCategories`.
+- `CategoryResource` lists and manages categories and calls
+  `CreatesCategories`/`UpdatesCategories`/`DeletesCategories`.
 - No bulk delete actions are registered.
 - Decision recorded as DEC-018 in `docs/agent/DECISIONS.md`.
 
 ## Implemented Inventory capabilities
 
 - `Inventory` and `StockMovement` models, factories and migrations.
-- Stock record per product and location, unique on `(product_id, location)`.
-- `CreateInventory` and `AdjustStock` actions with contracts and data objects.
-- Atomic adjustments in a transaction with `lockForUpdate`, rejecting negative results.
-- Append-only `stock_movements` written in the same transaction as the stock update.
-- `StockMovementReadService` for pagination, product/reason/date filtering,
-  per-product history and daily increase/decrease summaries (read-only).
+- Stock record per product variant and location, unique on `(variant_id, location)`.
+- `CreateInventory` and `AdjustStock` actions with contracts and data objects;
+  `CreateInventoryData` exposes `variantId`.
+- Atomic adjustments in a transaction with `lockForUpdate`, rejecting negative
+  results and zero adjustments.
+- Append-only `stock_movements` written in the same transaction as the stock
+  update, keyed to `variant_id`.
+- `StockMovementReadService` supports variant/product/reason/date filtering,
+  `forVariant()`, `summariesForVariant()` and daily increase/decrease summaries.
+- Existing inventory and movement rows were mapped to default variants with
+  IDs, quantities, history and timestamps preserved.
+- Decision recorded as DEC-019 in `docs/agent/DECISIONS.md`.
 
 ## Immediate task sequence
 
-### Option A — Define first-release product scope
+### Option A — Variant administration (recommended)
 
-- Decide required product fields and whether products are variant-based.
-- Record the decision in `DECISIONS.md` before expanding the schema.
-- Update the Filament product form only after the contract and data objects are
-  extended.
+- Add Catalog contracts and actions for creating, updating, deactivating and
+  repositioning variants.
+- Keep validation, uniqueness and business rules inside the Catalog module.
+- Expose the actions through an authorised Filament relation manager or page.
+- Add tests for multiple variants per product, SKU uniqueness, deactivation,
+  ordering and authorization.
+- Do not implement attributes/options yet; use `label` and `variant_key` as the
+  current foundation.
 
-### Option B — Expose Inventory movement history
+### Option B — Attributes and options
+
+- Define normalized global attribute definitions and options.
+- Add select-based variant dimensions on top of `variant_key`.
+- Migrate the default-only assumption only after the attribute model is decided.
+- Record the decision in `DECISIONS.md` before changing the schema.
+
+### Option C — Media
+
+- Add product media using the Laravel `public` disk and Filament `FileUpload`.
+- Keep media owned by Catalog and do not add pricing or order concerns.
+
+### Option D — Expose Inventory movement history
 
 - Add an authorised read layer (Filament page or API resource) over
   `StockMovementReadService`.
 - Reuse the existing service filters and pagination; do not duplicate queries.
-- Add tests for filtering, pagination and access control.
+- Add tests for variant/product filtering, pagination and access control.
 - Keep adjustment and movement-write behaviour unchanged.
 
-### Option C — Refine the Catalog admin layer
+### Later refinements
 
-- Add a product deletion action if product deletion is approved, routed through a
-  Catalog contract and explicitly authorised.
-- Add dedicated category assign/remove UI actions only if the single sync action
-  proves insufficient.
-- Replace the `is_admin` boolean with roles/permissions only when the requirement
-  is explicit; keep `canAccessPanel()` and policy boundaries stable.
-
-### Later Inventory refinements
-
+- Implement the Pricing module as a separate module; do not add price columns to
+  Catalog.
 - Add location entity and management.
 - Implement stock reservations and release logic.
 - Add per-location and per-reason reporting breakdowns.
+- Add a PostgreSQL `migrate:fresh` check to CI.
+- Replace the `is_admin` boolean with roles/permissions only when required.
 
 ### Verification and shared memory
 
 - Run focused tests, the full suite and `vendor/bin/pint --format agent` on changed files.
+- Run PHPStan on changed modules.
 - Update `PROJECT_STATE.md`, `WORK_LOG.md` and this handoff.
 - Update `DECISIONS.md` only when a decision is actually made.
 
 ## Completion criteria
 
-- The merge is conflict-free and the working tree is coherent.
+- The working tree is coherent and no uncommitted work is discarded.
 - The chosen task is implemented within its owning module.
-- Validation, lifecycle, assignment, deletion and stock rules are covered by tests.
+- Variant, validation, lifecycle, assignment, deletion and stock rules are
+  covered by tests.
 - Catalog and Inventory focused tests remain green.
 - Full-suite results and unrelated failures are recorded accurately.
-- Pint passes.
+- Pint and module PHPStan pass.
 - The next handoff identifies one concrete task.
 
 ## Reporting format
@@ -194,7 +220,9 @@ At handoff, state:
 - Objective.
 - Files changed.
 - Implementation details.
+- Schema and migration/data-preservation details.
 - Tests executed and exact results.
+- PostgreSQL verification.
 - Outstanding issues.
 - Recommended next action.
 

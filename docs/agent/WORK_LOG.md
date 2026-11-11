@@ -2,6 +2,161 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-11 — Catalog variant foundation and Inventory variant re-key (Task 003)
+
+### Objective
+Adopt the approved variant-first product architecture: introduce
+`ProductVariant` as the canonical purchasable unit, create a default variant for
+every product, re-key Inventory from `product_id` to `variant_id`, preserve
+existing development data, and fix fresh PostgreSQL migration ordering.
+
+### Work performed
+- Inspected Git state first; stayed on `feature/catalog` at `636b0fc` and did not
+  commit, merge or reset.
+- Fixed the PostgreSQL ordering prerequisite: `create_inventories_table` no
+  longer declares an inline `products` foreign key, because it sorts before
+  `create_products_table`. The final variant foreign key is added after
+  `product_variants` exists.
+- Added `ProductVariant`, `ProductVariantFactory`,
+  `z01_create_product_variants_table` and
+  `z02_backfill_default_product_variants`.
+- Variant schema: `product_id` (cascade), nullable globally unique `sku`,
+  nullable `label`, nullable `variant_key` unique per product, `is_active`,
+  `position`, timestamps, and supporting indexes.
+- Added `Product::variants()`, `Support/UniqueSku` and
+  `Support/DefaultVariantBackfill`.
+- Extended `CreateProductData` with optional `sku`; `CreateProduct` now validates
+  SKU uniqueness and creates the product plus default variant in one
+  transaction. It generates a collision-safe `SKU-{productId}` when no SKU is
+  supplied.
+- Updated `ProductFactory` to create a default variant by default and added
+  `withoutVariant()`.
+- Re-keyed Inventory with `z03`–`z06`: add nullable `variant_id`, backfill from
+  each product's default variant, abort if any row cannot be mapped, then rebuild
+  `inventories` and `stock_movements` with non-null variant foreign keys, final
+  unique/index definitions and reset PostgreSQL sequences.
+- Updated `Inventory` and `StockMovement` models, factories,
+  `CreateInventoryData`, `CreateInventory`, `AdjustStock` and
+  `StockMovementReadService` to use `variant_id`. Product-level movement
+  filtering joins through variants; `forVariant()` and
+  `summariesForVariant()` were added.
+- Updated Filament product administration: optional default-variant SKU on
+  create, read-only default-variant SKU on edit, and variant count/SKU columns.
+- Updated and extended tests for variant foundation, atomic product creation,
+  variant-keyed stock, movements and reporting.
+- Backed up the development database, applied all pending migrations and
+  verified data preservation.
+- Verified fresh PostgreSQL migration, rollback and re-apply on a throwaway
+  database.
+- Restored four tracked PHP files that were found NUL-byte corrupted on disk
+  (`Foundation/Modules/ModuleManager`, `ModuleManifest`, `ModuleRepository` and
+  `Console/Commands/MakeModuleCommand`) from `HEAD`. No user work was discarded;
+  the application booted normally afterwards.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Models/ProductVariant.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductVariantFactory.php`
+- `src/app/Modules/Catalog/Database/Migrations/z01_create_product_variants_table.php`
+- `src/app/Modules/Catalog/Database/Migrations/z02_backfill_default_product_variants.php`
+- `src/app/Modules/Catalog/Support/UniqueSku.php`
+- `src/app/Modules/Catalog/Support/DefaultVariantBackfill.php`
+- `src/app/Modules/Inventory/Database/Migrations/z03_add_variant_id_to_inventories_table.php`
+- `src/app/Modules/Inventory/Database/Migrations/z04_add_variant_id_to_stock_movements_table.php`
+- `src/app/Modules/Inventory/Database/Migrations/z05_finalize_inventories_table.php`
+- `src/app/Modules/Inventory/Database/Migrations/z06_finalize_stock_movements_table.php`
+- `src/tests/Feature/Catalog/ProductVariantFoundationTest.php`
+- `docs/agent/tasks/active/003-catalog-variant-foundation-and-inventory-rekey.md`
+
+Modified:
+- `src/app/Modules/Catalog/Models/Product.php`
+- `src/app/Modules/Catalog/Data/CreateProductData.php`
+- `src/app/Modules/Catalog/Actions/CreateProduct.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductFactory.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Schemas/ProductForm.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Pages/CreateProduct.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Tables/ProductsTable.php`
+- `src/app/Modules/Inventory/Database/Migrations/create_inventories_table.php`
+- `src/app/Modules/Inventory/Models/Inventory.php`
+- `src/app/Modules/Inventory/Models/StockMovement.php`
+- `src/app/Modules/Inventory/Database/Factories/InventoryFactory.php`
+- `src/app/Modules/Inventory/Database/Factories/StockMovementFactory.php`
+- `src/app/Modules/Inventory/Data/CreateInventoryData.php`
+- `src/app/Modules/Inventory/Actions/CreateInventory.php`
+- `src/app/Modules/Inventory/Actions/AdjustStock.php`
+- `src/app/Modules/Inventory/Services/StockMovementReadService.php`
+- `src/tests/Feature/Catalog/ProductCreationTest.php`
+- `src/tests/Feature/Inventory/InventoryFoundationTest.php`
+- `src/tests/Feature/Inventory/StockMovementTest.php`
+- `src/tests/Feature/Inventory/StockMovementReadTest.php`
+- `src/app/Modules/Catalog/README.md`
+- `src/app/Modules/Inventory/README.md`
+- `docs/agent/DECISIONS.md`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/PRODUCT_BLUEPRINT.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/ROADMAP.md`
+- `docs/agent/WORK_LOG.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/tasks/active/002-catalog-product-schema-and-variant-assessment.md`
+
+### Tests and verification
+- Catalog focused suite: 144 passed (431 assertions).
+- Inventory focused suite: 52 passed (174 assertions).
+- `ProductVariantFoundationTest.php`: 10 passed (19 assertions).
+- `ProductCreationTest.php`: 14 passed (46 assertions).
+- `InventoryFoundationTest.php`: 18 passed (51 assertions).
+- `StockMovementTest.php`: 15 passed (62 assertions).
+- `StockMovementReadTest.php`: 19 passed (61 assertions).
+- Full suite: **227 passed, 3 failed (686 assertions)**. The 3 failures are the
+  same pre-existing unrelated ones (`AuthenticationTest`,
+  `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Pint on Catalog, Inventory and their tests: passed.
+- PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
+- Full-project PHPStan: 21 pre-existing errors outside Catalog/Inventory
+  (Livewire, Core, Foundation, Identity, config).
+- Fresh PostgreSQL `migrate:fresh`: passed on throwaway database
+  `infino_task003_check`.
+- `migrate:rollback --step=7` then `migrate`: passed, confirming the new down and
+  up paths.
+- Development PostgreSQL migration: all pending migrations applied, including
+  `add_is_admin_to_users_table`, `z01`–`z06`.
+- Pre-migration backup:
+  `/tmp/opencode/infino-dev-pre-task003.sql`.
+- Data preservation: before and after both had 2 products, 1 inventory record
+  (id 1, quantity 13) and 1 stock movement (id 1, delta 3, resulting 13). Both
+  rows now reference default variant id 2; product names, slugs, IDs and
+  timestamps are unchanged.
+
+### Results
+- Every product owns at least one variant; the variant is the canonical
+  purchasable unit.
+- Product creation is atomic with default-variant creation, and existing
+  products were backfilled without duplicates.
+- Inventory and stock movements are variant-keyed with no dual stock path;
+  product-level reporting still works through the variant relationship.
+- Existing development data survived the re-key.
+- Fresh PostgreSQL and rollback/re-apply paths work.
+
+### Outstanding issues
+- Variant administration (multiple variants, editing, deactivation, positions)
+  is not implemented.
+- Attributes, media and pricing remain future phases.
+- `UpdateProduct` still cannot clear a description and `UpdateCategory` still
+  cannot clear a parent to root.
+- The 3 pre-existing full-suite failures and pre-existing full-project PHPStan
+  errors remain.
+- No CI job runs PostgreSQL `migrate:fresh` yet.
+- The rebuilt Inventory tables retain PostgreSQL sequence/PK names derived from
+  the temporary `_new` tables (for example `inventories_new_id_seq`). This is
+  cosmetic; the final foreign keys, unique constraint and indexes use explicit
+  names.
+
+### Next action
+Implement variant administration (Phase 2) behind Catalog contracts and policies,
+then attributes/options, media and the Pricing module. Add a PostgreSQL
+`migrate:fresh` CI check.
+
 ## 2026-11-11 — Catalog Filament administration layer
 
 ### Objective

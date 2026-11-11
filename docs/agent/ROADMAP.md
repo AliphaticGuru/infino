@@ -1,7 +1,7 @@
 # Infino — Development Roadmap
 
 **Status:** Initial proposed sequence  
-**Last reviewed:** 2026-11-08
+**Last reviewed:** 2026-11-11
 
 This roadmap is a working plan. Priorities may change after test-baseline and product-scope reviews.
 
@@ -49,7 +49,7 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle and product-category assignment complete
+**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, the first Filament admin layer and the variant-first foundation are complete
 
 Suggested sequence:
 1. ~~Verify Catalog module registration.~~ Complete.
@@ -60,8 +60,9 @@ Suggested sequence:
 6. ~~Add product update and retrieval behavior.~~ Complete: find by ID/slug, partial updates and rename slug regeneration verified.
 7. ~~Define product publication/status behavior.~~ Complete: draft/published/archived enum with guarded transitions (DEC-017).
 8. ~~Add categories and category relationships.~~ Complete; product-category pivot, parent-child hierarchy and assignment actions verified.
-9. Specify brands, attributes and variants before implementation.
-10. Integrate the administrative workflow.
+9. ~~Specify variants before implementation.~~ Complete: variant-first foundation, default variants and variant-keyed inventory (DEC-019). Brands and attributes remain open.
+10. ~~Integrate the administrative workflow.~~ Complete for products and categories; variant administration remains pending.
+11. Add variant administration (multiple variants, editing, deactivation, positions).
 
 Completion criteria:
 - Product persistence is tested.
@@ -73,7 +74,7 @@ Completion criteria:
 **Status:** In progress — Inventory stock foundation complete
 
 Candidate areas:
-- ~~Inventory.~~ Stock foundation implemented: product/location stock records and validated adjustments.
+- ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
 - Pricing.
 - Cart and wishlist.
 - Checkout.

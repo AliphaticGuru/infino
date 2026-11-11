@@ -16,9 +16,11 @@ return new class extends Migration
         Schema::create('inventories', function (Blueprint $table): void {
             $table->id();
 
-            $table->foreignId('product_id')
-                ->constrained('products')
-                ->cascadeOnDelete();
+            // The product foreign key is intentionally deferred. This migration
+            // sorts before create_products_table, so an inline constraint would
+            // fail on a fresh PostgreSQL database. The variant re-key migration
+            // replaces this column with variant_id and adds the final foreign key.
+            $table->foreignId('product_id');
 
             $table->string('location', 100)
                 ->default('default');

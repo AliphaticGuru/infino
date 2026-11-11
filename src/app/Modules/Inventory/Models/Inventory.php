@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Models;
 
-use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Inventory\Database\Factories\InventoryFactory;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -13,12 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
- * @property int $product_id
+ * @property int $variant_id
  * @property string $location
  * @property int $quantity
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
- * @property-read Product $product
+ * @property-read ProductVariant $variant
  */
 final class Inventory extends Model
 {
@@ -30,7 +30,7 @@ final class Inventory extends Model
     protected function casts(): array
     {
         return [
-            'product_id' => 'integer',
+            'variant_id' => 'integer',
             'quantity' => 'integer',
         ];
     }
@@ -41,10 +41,10 @@ final class Inventory extends Model
     }
 
     /**
-     * @return BelongsTo<Product, $this>
+     * @return BelongsTo<ProductVariant, $this>
      */
-    public function product(): BelongsTo
+    public function variant(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class);
     }
 }

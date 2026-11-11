@@ -130,6 +130,71 @@ Consequences:
 - New Catalog Filament actions must call module contracts and declare
   authorization explicitly.
 
+### DEC-019 — Variant-first product architecture and variant-owned inventory
+**Status:** Confirmed and implemented for the foundation
+**Date:** 2026-11-11
+**Branch:** `feature/catalog`
+
+Context:
+Products previously had no purchasable unit: no SKU, no variant and no price.
+Inventory was keyed to `product_id`, so a future variant-based catalog would
+have required either a second stock path or a disruptive re-key after real stock
+history existed. The development database already held inventory and movement
+rows that had to survive the change.
+
+Decision:
+- Every product owns at least one `ProductVariant`. A simple product has exactly
+  one default variant; a variable product has several. The variant is the only
+  purchasable unit.
+- SKU, inventory, pricing, cart lines and order lines reference the variant, not
+  the product.
+- `product_variants` stores `product_id`, nullable globally unique `sku`,
+  nullable `label`, nullable `variant_key`, `is_active`, `position` and
+  timestamps. `variant_key` is unique per product and holds a deterministic
+  option signature such as `color:1|size:4`.
+- `sku` is nullable in the database to allow drafts but globally unique when
+  present. `CreateProduct` accepts an optional SKU, rejects duplicates through
+  validation, and otherwise generates a collision-safe `SKU-{productId}`.
+- Product creation and default-variant creation run in one database transaction.
+  Existing products are backfilled idempotently with a default variant.
+- Inventory is re-keyed from `product_id` to `variant_id`. `inventories` is
+  unique on `(variant_id, location)`; `stock_movements` keeps its append-only
+  shape with variant-keyed indexes. Product-level reporting joins through
+  `product_variants`; there is no dual stock path.
+- Existing inventory and movement rows are mapped to their product's default
+  variant without losing IDs, quantities, history or timestamps.
+- Pricing stays outside Catalog in a future Pricing module. Media uses the
+  Laravel `public` disk with Filament `FileUpload`. Attributes use normalized
+  global definitions/options, with select-based variant dimensions. Products and
+  variants are archived/deactivated rather than hard-deleted once business
+  history exists.
+
+Migration strategy:
+- Module migrations are untimestamped and globally sorted by filename.
+  `create_inventories_table` sorts before `create_products_table`, so its inline
+  product foreign key was removed; the final variant foreign key is added by the
+  re-key migrations after `product_variants` exists.
+- The re-key adds nullable `variant_id`, backfills from the default variant,
+  aborts if any row cannot be mapped, then rebuilds both tables with non-null
+  variant foreign keys and the final indexes. Primary keys and row IDs are
+  preserved. PostgreSQL sequences are reset after the rebuild.
+- Down migrations rebuild the product-keyed shape from the variant join.
+
+Rationale:
+A single purchasable unit avoids conditional `variant_id ?? product_id` logic in
+inventory, pricing, cart and orders. Paying the extra table and default-variant
+invariant now is cheaper than migrating live stock and order history later.
+
+Consequences:
+- Product creation must always produce at least one variant; callers that create
+  products outside `CreateProduct` must do the same.
+- Inventory actions, data objects, factories and read services now speak
+  `variant_id`. Product-level queries go through the variant relationship.
+- Variant administration, attributes, media and pricing remain separate future
+  tasks; this decision does not authorise them.
+- Variant hard deletion cascades to inventory and movements; once orders exist,
+  deletion must be replaced by deactivation/archiving.
+
 ### DEC-015 — Inventory stock movement history is append-only
 **Status:** Confirmed for the Inventory foundation
 
