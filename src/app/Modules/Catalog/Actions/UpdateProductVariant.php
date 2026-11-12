@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Actions;
 
+use App\Modules\Catalog\Contracts\SyncsVariantAttributeOptions;
 use App\Modules\Catalog\Contracts\UpdatesProductVariants;
+use App\Modules\Catalog\Data\SyncVariantAttributeOptionsData;
 use App\Modules\Catalog\Data\UpdateProductVariantData;
 use App\Modules\Catalog\Models\ProductVariant;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,10 @@ use Illuminate\Validation\Rule;
 
 final class UpdateProductVariant implements UpdatesProductVariants
 {
+    public function __construct(
+        private readonly SyncsVariantAttributeOptions $syncVariantAttributeOptions,
+    ) {}
+
     public function handle(ProductVariant $variant, UpdateProductVariantData $data): ProductVariant
     {
         return DB::transaction(function () use ($variant, $data): ProductVariant {
@@ -55,6 +61,13 @@ final class UpdateProductVariant implements UpdatesProductVariants
 
             if ($validated !== []) {
                 $current->fill($validated)->save();
+            }
+
+            if ($data->attributeOptions !== null) {
+                $current = $this->syncVariantAttributeOptions->handle(
+                    $current,
+                    new SyncVariantAttributeOptionsData($data->attributeOptions, $data->variantKey),
+                );
             }
 
             return $current->refresh();

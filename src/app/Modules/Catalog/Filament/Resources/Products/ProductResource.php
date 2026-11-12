@@ -7,6 +7,7 @@ namespace App\Modules\Catalog\Filament\Resources\Products;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\CreateProduct;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\EditProduct;
 use App\Modules\Catalog\Filament\Resources\Products\Pages\ListProducts;
+use App\Modules\Catalog\Filament\Resources\Products\RelationManagers\ProductAttributesRelationManager;
 use App\Modules\Catalog\Filament\Resources\Products\RelationManagers\VariantsRelationManager;
 use App\Modules\Catalog\Filament\Resources\Products\Schemas\ProductForm;
 use App\Modules\Catalog\Filament\Resources\Products\Tables\ProductsTable;
@@ -50,6 +51,7 @@ final class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
+            ProductAttributesRelationManager::class,
             VariantsRelationManager::class,
         ];
     }

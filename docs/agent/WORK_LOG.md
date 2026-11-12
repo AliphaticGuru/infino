@@ -2,6 +2,138 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-12 — Catalog product attributes and options (Task 005)
+
+### Objective
+Add a normalized product attribute/option foundation on top of the variant-first
+Catalog architecture: global attribute definitions, owned options, product
+assignments, variant option selections, derived variant keys and Filament
+administration, without breaking variants, SKUs, default variants, positions or
+the variant-keyed Inventory relationships.
+
+### Work performed
+- Inspected Git state first; stayed on `feature/catalog`, did not commit, merge or
+  reset.
+- Recorded DEC-021 and the Task 005 proposal before implementation; both are now
+  marked implemented after verification.
+- Added Catalog migrations `z07_create_product_attributes_table`,
+  `z08_create_product_attribute_options_table`,
+  `z09_create_product_attribute_product_table` and
+  `z10_create_product_variant_attribute_options_table`. The `z03`–`z06` prefixes
+  remain owned by Inventory.
+- Added `ProductAttribute`, `ProductAttributeOption` and
+  `ProductVariantAttributeOption` models, relationships
+  (`Product::productAttributes()`, `ProductVariant::attributeOptions()`) and
+  factories.
+- Added `Support\AttributeType` (`select`) and `Support\VariantKey` for
+  deterministic `attributeCode:optionCode` key derivation.
+- Added contracts, data objects and actions for attribute CRUD, option CRUD,
+  product assignment/removal/sync, variant option sync and option repositioning.
+- Added `ProductAttributePolicy`, `ProductAttributeOptionPolicy` and
+  `ProductPolicy::manageAttributes`; registered all contracts and policies in
+  `CatalogServiceProvider`.
+- Extended `CreateProductVariantData` / `UpdateProductVariantData` with optional
+  `attributeOptions`; `CreateProductVariant` / `UpdateProductVariant` apply the
+  same validation and key derivation inside their existing transactions.
+- Enforced immutable codes, uniqueness, active-state, product ownership,
+  variant-dimension checks, completeness, composite database integrity and
+  transactional locking.
+- Added Filament `AttributeResource` with `OptionsRelationManager`, a
+  `ProductAttributesRelationManager` on the product edit page and dynamic
+  per-dimension option selects in `ProductVariantForm` / `ProductVariantsTable`.
+  All writes delegate to Catalog contracts.
+- Added business and Filament tests covering definitions, options, assignment,
+  variant selection, completeness, key derivation, rollback, legacy keys,
+  Inventory isolation and authorization.
+- Updated `PROJECT_STATE.md`, `HANDOFF.md`, `DECISIONS.md`, `modules/CATALOG.md`
+  and the Task 005 document.
+
+### Files changed
+Created:
+- `src/app/Modules/Catalog/Database/Migrations/z07_create_product_attributes_table.php`
+- `src/app/Modules/Catalog/Database/Migrations/z08_create_product_attribute_options_table.php`
+- `src/app/Modules/Catalog/Database/Migrations/z09_create_product_attribute_product_table.php`
+- `src/app/Modules/Catalog/Database/Migrations/z10_create_product_variant_attribute_options_table.php`
+- `src/app/Modules/Catalog/Models/ProductAttribute.php`
+- `src/app/Modules/Catalog/Models/ProductAttributeOption.php`
+- `src/app/Modules/Catalog/Models/ProductVariantAttributeOption.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductAttributeFactory.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductAttributeOptionFactory.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductVariantAttributeOptionFactory.php`
+- `src/app/Modules/Catalog/Support/AttributeType.php`
+- `src/app/Modules/Catalog/Support/VariantKey.php`
+- Attribute/option/assignment/variant-option contracts, data objects and actions under `src/app/Modules/Catalog/`.
+- `src/app/Modules/Catalog/Policies/ProductAttributePolicy.php`
+- `src/app/Modules/Catalog/Policies/ProductAttributeOptionPolicy.php`
+- `src/app/Modules/Catalog/Filament/Resources/Attributes/*`
+- `src/app/Modules/Catalog/Filament/Resources/Products/RelationManagers/ProductAttributesRelationManager.php`
+- `src/tests/Feature/Catalog/ProductAttributeFoundationTest.php`
+- `src/tests/Feature/Catalog/ProductAttributeAdministrationTest.php`
+- `src/tests/Feature/Catalog/ProductAttributeOptionAdministrationTest.php`
+- `src/tests/Feature/Catalog/ProductAttributeAssignmentTest.php`
+- `src/tests/Feature/Catalog/ProductVariantAttributeOptionsTest.php`
+- `src/tests/Feature/Catalog/Filament/ProductAttributeResourceTest.php`
+- `src/tests/Feature/Catalog/Filament/ProductAttributeAssignmentFilamentTest.php`
+- `src/tests/Feature/Catalog/Filament/ProductVariantAttributeOptionsFilamentTest.php`
+- `docs/agent/tasks/active/005-catalog-product-attributes-and-options.md`
+
+Modified:
+- `src/app/Modules/Catalog/Models/Product.php`
+- `src/app/Modules/Catalog/Models/ProductVariant.php`
+- `src/app/Modules/Catalog/Providers/CatalogServiceProvider.php`
+- `src/app/Modules/Catalog/Policies/ProductPolicy.php`
+- `src/app/Modules/Catalog/Actions/CreateProductVariant.php`
+- `src/app/Modules/Catalog/Actions/UpdateProductVariant.php`
+- `src/app/Modules/Catalog/Data/CreateProductVariantData.php`
+- `src/app/Modules/Catalog/Data/UpdateProductVariantData.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/ProductResource.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Schemas/ProductVariantForm.php`
+- `src/app/Modules/Catalog/Filament/Resources/Products/Tables/ProductVariantsTable.php`
+- `src/tests/Feature/Catalog/ProductVariantAdministrationTest.php` (import ordering only)
+- `docs/agent/DECISIONS.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/modules/CATALOG.md`
+
+### Tests and verification
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Catalog`
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Inventory`
+- `docker compose run --rm --no-deps cli php artisan test --compact`
+- `docker compose run --rm --no-deps cli ./vendor/bin/pint --test app/Modules/Catalog tests/Feature/Catalog`
+- `docker compose run --rm --no-deps cli ./vendor/bin/phpstan analyse app/Modules/Catalog`
+- `docker compose run --rm --no-deps cli ./vendor/bin/phpstan analyse app/Modules/Inventory`
+- Throwaway PostgreSQL database `infino_task005_verify`: `migrate:fresh`, then
+  rollback of `z07`–`z10` by path, then re-apply; database dropped afterwards.
+- `git diff --check`.
+
+### Results
+- New focused business tests: 53 passed (108 assertions).
+- `ProductAttributeResourceTest`: 14 passed (85 assertions).
+- `ProductAttributeAssignmentFilamentTest`: 5 passed (21 assertions).
+- `ProductVariantAttributeOptionsFilamentTest`: 5 passed (49 assertions).
+- Catalog focused suite: **265 passed (862 assertions)**.
+- Inventory focused suite: **52 passed (174 assertions)**.
+- Full suite: **348 passed, 3 failed (1117 assertions)**.
+- The 3 failures are the known pre-existing `AuthenticationTest`,
+  `TwoFactorChallengeTest` and `PostCreatePageTest` failures.
+- Pint: pass. Module PHPStan (Catalog, Inventory): no errors.
+- PostgreSQL `migrate:fresh`, rollback and re-apply: pass.
+- `git diff --check`: clean.
+
+### Outstanding issues
+- Task 005 is not committed; HEAD remains `cfe11b6`.
+- Attribute support is limited to `select` variant dimensions. Descriptive
+  attribute values, text/number/boolean types and product-level values are
+  deferred.
+- Publication does not yet require every variant of a dimensioned product to be
+  configured.
+- The three pre-existing full-suite failures remain unrelated to Catalog.
+
+### Next action
+Get authorization to commit Task 005, then proceed to media or the Pricing
+module.
+
 ## 2026-11-11 — Catalog product variant administration (Task 004)
 
 ### Objective

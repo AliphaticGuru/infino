@@ -21,7 +21,11 @@ final class VariantsRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        return ProductVariantForm::configure($schema);
+        $owner = $this->getOwnerRecord();
+
+        assert($owner instanceof Product);
+
+        return ProductVariantForm::configure($schema, $owner);
     }
 
     public function table(Table $table): Table

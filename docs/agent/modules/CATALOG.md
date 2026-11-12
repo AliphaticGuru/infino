@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product, category, variant foundation and variant administration complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion, variant-keyed Inventory and the Filament admin layer verified
+**Status:** Product, category, variant and attribute/option foundations complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized attributes/options, variant-keyed Inventory and the Filament admin layer verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -51,6 +51,19 @@ Product:
 - `Contracts/RepositionsProductVariants.php`
 - `Data/CreateProductVariantData.php`
 - `Data/UpdateProductVariantData.php`
+- `Models/ProductAttribute.php`
+- `Models/ProductAttributeOption.php`
+- `Models/ProductVariantAttributeOption.php`
+- `Support/AttributeType.php`
+- `Support/VariantKey.php`
+- `Database/Factories/ProductAttributeFactory.php`
+- `Database/Factories/ProductAttributeOptionFactory.php`
+- `Database/Factories/ProductVariantAttributeOptionFactory.php`
+- `Database/Migrations/z07_create_product_attributes_table.php`
+- `Database/Migrations/z08_create_product_attribute_options_table.php`
+- `Database/Migrations/z09_create_product_attribute_product_table.php`
+- `Database/Migrations/z10_create_product_variant_attribute_options_table.php`
+- Attribute/option/assignment/variant-option contracts, actions and data objects under `Actions/`, `Contracts/` and `Data/`.
 
 Category:
 - `Models/Category.php`
@@ -77,8 +90,16 @@ Filament administration (Filament 5, module-owned):
 - `Filament/Resources/Products/Pages/CreateProduct.php`
 - `Filament/Resources/Products/Pages/EditProduct.php`
 - `Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`
+- `Filament/Resources/Products/RelationManagers/ProductAttributesRelationManager.php`
 - `Filament/Resources/Products/Schemas/ProductVariantForm.php`
 - `Filament/Resources/Products/Tables/ProductVariantsTable.php`
+- `Filament/Resources/Attributes/AttributeResource.php`
+- `Filament/Resources/Attributes/Schemas/AttributeForm.php`
+- `Filament/Resources/Attributes/Tables/AttributesTable.php`
+- `Filament/Resources/Attributes/Pages/ListAttributes.php`
+- `Filament/Resources/Attributes/Pages/CreateAttribute.php`
+- `Filament/Resources/Attributes/Pages/EditAttribute.php`
+- `Filament/Resources/Attributes/RelationManagers/OptionsRelationManager.php`
 - `Filament/Resources/Categories/CategoryResource.php`
 - `Filament/Resources/Categories/Schemas/CategoryForm.php`
 - `Filament/Resources/Categories/Tables/CategoriesTable.php`
@@ -90,6 +111,8 @@ Authorization:
 - `Policies/ProductPolicy.php`
 - `Policies/CategoryPolicy.php`
 - `Policies/ProductVariantPolicy.php`
+- `Policies/ProductAttributePolicy.php`
+- `Policies/ProductAttributeOptionPolicy.php`
 
 Inventory (owned by the Inventory module, listed here only for the product boundary):
 - `App\Modules\Inventory\Models\Inventory` and `StockMovement`
@@ -246,6 +269,104 @@ Verified on 2026-11-11:
 - `ProductVariantResourceTest.php` (9 tests, 44 assertions): listing, creation,
   validation, editing, activation/deactivation, default deactivation protection,
   relation-manager visibility and HTTP access.
+
+## Product attributes and options
+
+Normalized attribute definitions and options sit on top of the variant-first
+architecture (DEC-021). The variant remains the canonical purchasable unit, and
+Inventory is untouched.
+
+Tables:
+- `product_attributes`: `id`, immutable globally unique `code`, editable
+  `name`, `type` (`select` only in Task 005), `is_variant_dimension`,
+  `position`, `is_active`, timestamps.
+- `product_attribute_options`: `id`, `product_attribute_id` (cascade), immutable
+  per-attribute `code`, editable `label`, `position`, `is_active`, timestamps;
+  unique `(product_attribute_id, code)` and unique `(id, product_attribute_id)`.
+- `product_attribute_product`: `product_id`, `product_attribute_id`, composite
+  primary key.
+- `product_variant_attribute_options`: `id`, `product_variant_id` (cascade),
+  `product_attribute_id` (restrict), `product_attribute_option_id`, timestamps;
+  unique `(product_variant_id, product_attribute_id)` and composite FK
+  `(product_attribute_option_id, product_attribute_id)` to
+  `product_attribute_options (id, product_attribute_id)`.
+
+Models and relationships:
+- `ProductAttribute::options()` and `ProductAttribute::products()`.
+- `ProductAttributeOption::attribute()` and
+  `ProductAttributeOption::variantSelections()`.
+- `Product::productAttributes()` (deliberately not `attributes()`).
+- `ProductVariant::attributeOptions()`.
+- `ProductVariantAttributeOption` belongs to the variant, attribute and option.
+
+Contracts and actions:
+- Definitions: `FindsProductAttributes` / `FindProductAttribute`,
+  `CreatesProductAttributes` / `CreateProductAttribute`,
+  `UpdatesProductAttributes` / `UpdateProductAttribute`,
+  `DeletesProductAttributes` / `DeleteProductAttribute`.
+- Options: `FindsProductAttributeOptions` / `FindProductAttributeOption`,
+  `CreatesProductAttributeOptions` / `CreateProductAttributeOption`,
+  `UpdatesProductAttributeOptions` / `UpdateProductAttributeOption`,
+  `DeletesProductAttributeOptions` / `DeleteProductAttributeOption`,
+  `RepositionsProductAttributeOptions` /
+  `RepositionProductAttributeOptions`.
+- Assignment: `AssignsProductAttributes` / `AssignProductAttributes`,
+  `RemovesProductAttributes` / `RemoveProductAttributes`,
+  `SyncsProductAttributes` / `SyncProductAttributes`.
+- Variant mapping: `SyncsVariantAttributeOptions` /
+  `SyncVariantAttributeOptions` / `SyncVariantAttributeOptionsData`.
+
+Rules:
+- Attribute codes are globally unique and immutable; option codes are unique per
+  attribute and immutable. Names and labels are editable.
+- Only active variant dimensions can be newly assigned to a product; inactive
+  and descriptive attributes are rejected.
+- Assigning the same attribute twice is idempotent; assignments are isolated per
+  product.
+- A variant holds at most one option per attribute. The composite FK prevents an
+  option from being attached to a different attribute.
+- Configured variants must select exactly one option for every variant dimension
+  assigned to their product. Incomplete, duplicate, unknown, cross-product,
+  mismatched and newly-inactive selections raise `ValidationException`.
+- An existing selection may remain after its attribute or option is deactivated.
+- `variant_key` is derived from immutable `attributeCode:optionCode` pairs
+  sorted by attribute `position` then `code`, joined with `|` (for example
+  `size:m|color:red`). A manually supplied key must be absent or equal to the
+  derived key. Unconfigured variants keep the optional manual key behaviour.
+- Duplicate option combinations are rejected per product through the existing
+  per-product `variant_key` uniqueness.
+- Definitions/options are deactivated rather than hard-deleted once referenced;
+  guarded hard deletion is allowed only when unreferenced. Removing an attribute
+  that a product variant still selects is rejected.
+- All multi-row writes run in transactions with row locking. Variant option
+  changes do not touch inventory rows or stock movements.
+
+Variant integration:
+- `CreateProductVariantData` and `UpdateProductVariantData` accept an optional
+  `attributeOptions` map of `attribute_id => option_id`.
+- `CreateProductVariant` and `UpdateProductVariant` apply the same validation and
+  key derivation inside their existing transactions, so variant
+  creation/editing remains atomic.
+- `null` means "leave selections unchanged" on update; an empty array clears
+  selections and the derived key for a product without dimensions.
+
+Authorization:
+- `ProductAttributePolicy` and `ProductAttributeOptionPolicy` are admin-only;
+  deletion is additionally guarded by reference checks in the actions.
+- `ProductPolicy::manageAttributes` exposes product assignment to admins.
+
+Verified on 2026-11-12:
+- `ProductAttributeFoundationTest.php`, `ProductAttributeAdministrationTest.php`,
+  `ProductAttributeOptionAdministrationTest.php`,
+  `ProductAttributeAssignmentTest.php` and
+  `ProductVariantAttributeOptionsTest.php`: 53 passed (108 assertions) across
+  the business suites (including the 6 foundation tests).
+- `ProductAttributeResourceTest.php`: 14 passed (85 assertions).
+- `ProductAttributeAssignmentFilamentTest.php`: 5 passed (21 assertions).
+- `ProductVariantAttributeOptionsFilamentTest.php`: 5 passed (49 assertions).
+- Catalog focused suite: 265 passed (862 assertions).
+- Inventory focused suite: 52 passed (174 assertions).
+- PostgreSQL `migrate:fresh`, rollback of `z07`–`z10` and re-apply: verified.
 
 ## Product retrieval and update
 
@@ -508,7 +629,11 @@ Known limitations:
 - Admin access is a single boolean; granular roles and permissions are future
   work.
 - Variant hard deletion is not exposed; variants are deactivated instead.
-- Attributes, media and pricing are not implemented.
+- Attribute support is limited to `select` variant dimensions; descriptive
+  values, text/number/boolean types and product-level values are deferred.
+- Publication does not yet require every variant of a dimensioned product to be
+  configured.
+- Media and pricing are not implemented.
 - Inventory is variant-keyed, but no Inventory administration or reporting UI
   exists.
 
@@ -517,7 +642,9 @@ Known limitations:
 These are not yet implemented or approved as final scope:
 - Brands.
 - Collections.
-- Attribute definitions, options and product/variant values.
+- Attribute definitions and options are implemented for `select` variant
+  dimensions; descriptive product values, other attribute types and product-level
+  values remain future scope.
 - Product media.
 - SEO metadata.
 - Product search metadata.
@@ -535,9 +662,10 @@ These are not yet implemented or approved as final scope:
 9. ~~How are products assigned to categories?~~ Verified: assign, remove and sync actions with validation (2026-11-10).
 10. ~~Can categories be retrieved and deleted safely?~~ Verified: find by ID, pagination, category products and guarded deletion (2026-11-10).
 11. ~~Is there an authorised administration layer?~~ Verified: Filament 5 product and category resources with an explicit admin flag, module policies and contract-backed writes (2026-11-11).
-12. ~~What product fields are required for the first release?~~ Partially resolved: the variant-first foundation is implemented (DEC-019); brands, attributes, media and SEO remain future scope.
+12. ~~What product fields are required for the first release?~~ Partially resolved: the variant-first foundation is implemented (DEC-019); brands, media and SEO remain future scope.
 13. ~~Are products variant-based from the beginning?~~ Yes. Every product owns at least one variant, and the variant is the canonical purchasable unit (DEC-019).
 14. ~~Can variants be administered safely?~~ Verified: retrieval, creation, update, activation/deactivation, default and last-active protection, product-scoped repositioning and Filament relation-manager administration (DEC-020, 2026-11-11).
+15. ~~How are attributes, options and variant option selections modelled?~~ Verified: normalized global definitions, owned options, product assignments, variant selections, derived variant keys, guarded deletion and Filament administration (DEC-021, 2026-11-12).
 
 ## Acceptance criteria for the initial Catalog foundation
 
@@ -555,6 +683,10 @@ These are not yet implemented or approved as final scope:
 - Publication status is independent of `is_active` availability.
 - Product-category assignment, removal and synchronisation are validated and tested.
 - Category retrieval and deletion rules are validated and tested; assigned categories cannot be deleted.
+- Attribute definitions and options are normalized, uniquely coded, guarded against unsafe deletion and covered by tests.
+- Product attribute assignment and variant option selection enforce active-state, ownership, completeness and composite integrity.
+- Configured variants derive deterministic per-product `variant_key` values; unconfigured legacy variants remain valid.
+- Attribute option changes preserve inventory and stock movement records.
 - The Filament administration layer is authorised, reuses module contracts and is covered by tests.
 - Slug uniqueness behavior is defined and tested.
 - Parent-child and product-category relationships are defined and tested.

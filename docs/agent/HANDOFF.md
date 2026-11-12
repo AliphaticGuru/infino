@@ -1,19 +1,24 @@
 # Infino — Current Agent Handoff
 
-**Last updated:** 2026-11-11
+**Last updated:** 2026-11-12
 **Branch at last inspection:** `feature/catalog`
-**Latest commit at last inspection:** `d44f6e8` — `feat(catalog): implemented catalog variant foundation & inventory variant re-key`
+**Latest commit at last inspection:** `cfe11b6` — `feat(catalog): implemented catalog product variant Administration`
 
 ## Objective
 
-Continue Catalog MVP work from the completed variant administration task. Task
+Continue Catalog MVP work from the completed attributes and options task. Task
 003 introduced `ProductVariant` as the canonical purchasable unit, created a
 default variant for every product and re-keyed Inventory from `product_id` to
 `variant_id`. Task 004 added retrieval, creation, updating, activation/
-deactivation, positioning and Filament administration for multiple variants.
+deactivation, positioning and Filament administration for multiple variants and
+is committed at `cfe11b6`.
 
-The next concrete task is attributes and options on top of the variant
-foundation. Keep Cart, Checkout, Orders and Payments untouched.
+Task 005 (normalized product attributes and options) is **implemented and
+verified in the working tree but not committed**. DEC-021 is recorded as
+implemented. The work adds global attribute definitions, owned options, product
+assignments, variant option selections, derived `variant_key` values and
+Filament administration. Do not commit, merge or reset without authorization.
+Keep Cart, Checkout, Orders and Payments untouched.
 
 ## Read first
 
@@ -22,22 +27,22 @@ foundation. Keep Cart, Checkout, Orders and Payments untouched.
 3. `docs/agent/PRODUCT_BLUEPRINT.md`
 4. `docs/agent/PROJECT_STATE.md`
 5. `docs/agent/ROADMAP.md`
-6. `docs/agent/DECISIONS.md` (especially DEC-019 and DEC-020)
+6. `docs/agent/DECISIONS.md` (especially DEC-019, DEC-020 and DEC-021)
 7. `docs/agent/modules/CATALOG.md`
-8. `docs/agent/tasks/active/004-catalog-product-variant-administration.md`
+8. `docs/agent/tasks/active/005-catalog-product-attributes-and-options.md`
 9. This handoff.
 10. `src/AGENTS.md` before Laravel application changes.
 
 ## Important repository protection
 
-The working tree contains the uncommitted Task 004 variant administration on top
-of `d44f6e8`. This work is not committed.
+The working tree contains uncommitted Task 005 implementation on top of the
+committed Task 004 at `cfe11b6`. Nothing in Task 005 has been committed.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
 - Stash or discard user changes.
+- Commit, merge or push without authorization.
 - Rewrite existing application files without inspecting their diffs.
-- Commit or merge without authorization.
 
 Run `git status --short` again before doing anything. The recorded state is historical.
 
@@ -68,16 +73,17 @@ logic bug.
   product-category assignment, category retrieval/deletion, variant foundation,
   variant administration and the Filament admin layer: verified.
 - Inventory variant-keyed stock, movement history and read/reporting: verified.
-- Catalog focused suite after Task 004: **180 passed (570 assertions)**.
-- Catalog Filament suite after Task 004: **45 passed (179 assertions)**.
+- Catalog focused suite after Task 005: **265 passed (862 assertions)**.
+- Catalog Filament suite after Task 005: **69 passed (334 assertions)**.
 - Inventory focused suite: **52 passed (174 assertions)**.
-- Full suite after Task 004: **263 passed, 3 failed (825 assertions)**.
+- Full suite after Task 005: **348 passed, 3 failed (1117 assertions)**.
 - Pint on changed Catalog/Inventory source and tests: passed.
 - PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
 - Full-project PHPStan: 21 pre-existing errors outside Catalog/Inventory.
-- Fresh PostgreSQL `migrate:fresh` was verified during Task 003 on a throwaway
-  database. Task 004 adds no migrations.
-- New Task 003 migrations roll back (`--step=7`) and re-apply cleanly.
+- Fresh PostgreSQL `migrate:fresh` was verified during Task 003 and again during
+  Task 005 on throwaway databases.
+- Task 003 migrations roll back (`--step=7`) and re-apply cleanly. Task 005
+  `z07`–`z10` migrations rolled back and re-applied cleanly by path.
 
 ## Known failures unrelated to Catalog and Inventory
 
@@ -148,6 +154,49 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
   `ProductVariantResourceTest.php` (9 tests, 44 assertions).
 - Decision recorded as DEC-020 in `docs/agent/DECISIONS.md`.
 
+## Implemented product attributes and options (Task 005)
+
+- Global definitions: `product_attributes` with immutable globally unique
+  `code`, editable `name`, `type` (`select` only), `is_variant_dimension`,
+  `position` and `is_active`.
+- Owned options: `product_attribute_options` with immutable per-attribute
+  `code`, editable `label`, `position` and `is_active`; the unique
+  `(id, product_attribute_id)` pair is the composite-FK target.
+- Product assignment: `product_attribute_product`; only active variant
+  dimensions are assignable in Task 005.
+- Variant selections: `product_variant_attribute_options` with unique
+  `(product_variant_id, product_attribute_id)` and a composite FK guaranteeing
+  the option belongs to the selected attribute.
+- Models: `ProductAttribute`, `ProductAttributeOption`,
+  `ProductVariantAttributeOption`; relationships
+  `Product::productAttributes()` and `ProductVariant::attributeOptions()`.
+- Contracts/actions: attribute CRUD, option CRUD, assign/remove/sync product
+  attributes, sync variant options and reposition options. All writes are
+  transactional with row locking.
+- `variant_key` is derived from `attributeCode:optionCode` pairs sorted by
+  attribute position then code, joined with `|`. Manual keys must match when
+  selections are supplied; unconfigured variants keep the optional manual key.
+- Configured variants must select exactly one option per assigned variant
+  dimension. Incomplete, duplicate, cross-product, unknown, mismatched and
+  newly-inactive selections are rejected.
+- Definitions/options are deactivated when referenced; hard deletion is guarded
+  and unreferenced-only. Attributes still selected by a variant cannot be
+  removed from the product.
+- `CreateProductVariantData` / `UpdateProductVariantData` gained optional
+  `attributeOptions`; variant creation/editing stays atomic.
+- Filament: `AttributeResource` with `OptionsRelationManager`,
+  `ProductAttributesRelationManager` on the product edit page and dynamic
+  per-dimension option selects in `ProductVariantForm` / `ProductVariantsTable`.
+- Authorization: `ProductAttributePolicy`, `ProductAttributeOptionPolicy` and
+  `ProductPolicy::manageAttributes`, all admin-only.
+- Inventory is untouched; option changes do not alter inventory rows or stock
+  movements.
+- Tests: 53 business tests (108 assertions), `ProductAttributeResourceTest`
+  (14 tests, 85 assertions), `ProductAttributeAssignmentFilamentTest` (5 tests,
+  21 assertions) and `ProductVariantAttributeOptionsFilamentTest` (5 tests, 49
+  assertions).
+- Decision recorded as DEC-021 in `docs/agent/DECISIONS.md`.
+
 ## Implemented Filament administration layer
 
 - Identity users carry an `is_admin` boolean; `User` implements `FilamentUser`
@@ -163,6 +212,11 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - `manageCategories` calls `SyncsProductCategories`.
 - The `VariantsRelationManager` provides variant listing, creation, editing,
   activation/deactivation and drag reordering.
+- `AttributeResource` manages global attribute definitions and their options;
+  `ProductAttributesRelationManager` assigns/removes attributes on the product
+  edit page; the variant form selects one option per assigned dimension. All
+  writes call Catalog contracts.
+- `ProductPolicy` also exposes `manageAttributes`.
 - `CategoryResource` lists and manages categories and calls
   `CreatesCategories`/`UpdatesCategories`/`DeletesCategories`.
 - No bulk delete actions are registered.
@@ -186,13 +240,11 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 ## Immediate task sequence
 
-### Option A — Attributes and options (recommended)
+### Option A — Commit Task 005 (recommended first)
 
-- Define normalized global attribute definitions and options in Catalog.
-- Add select-based variant dimensions on top of `variant_key`.
-- Keep variant SKU, lifecycle and positioning behaviour unchanged.
-- Record the decision in `DECISIONS.md` before changing the schema.
-- Add focused Catalog tests for definitions, options, values and validation.
+- Review the uncommitted Task 005 diff and obtain authorization to commit.
+- Do not push or merge without separate authorization.
+- Confirm the working tree remains clean and documentation matches the diff.
 
 ### Option B — Media
 
@@ -207,6 +259,12 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - Reuse the existing service filters and pagination; do not duplicate queries.
 - Add tests for variant/product filtering, pagination and access control.
 - Keep adjustment and movement-write behaviour unchanged.
+
+### Option D — Descriptive attribute values
+
+- Extend the attribute model beyond `select` variant dimensions only after a
+  decision on product-level values and text/number/boolean types.
+- Keep variant option selections separate from descriptive product values.
 
 ### Later refinements
 

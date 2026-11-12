@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property CarbonInterface|null $updated_at
  * @property-read Collection<int, ProductVariant> $variants
  * @property-read ProductVariant|null $defaultVariant
+ * @property-read Collection<int, ProductAttribute> $productAttributes
  */
 final class Product extends Model
 {
@@ -68,5 +69,18 @@ final class Product extends Model
     public function defaultVariant(): HasOne
     {
         return $this->hasOne(ProductVariant::class)->oldestOfMany();
+    }
+
+    /**
+     * The attributes assigned to this product.
+     *
+     * Deliberately not named attributes() because Eloquent already exposes the
+     * $attributes property on every model.
+     *
+     * @return BelongsToMany<ProductAttribute, $this>
+     */
+    public function productAttributes(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductAttribute::class, 'product_attribute_product');
     }
 }

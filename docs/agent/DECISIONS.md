@@ -324,6 +324,213 @@ Provider choices and integration priorities are not yet recorded.
 
 Deployment options have been explored, but the final production architecture is not established in this decision record.
 
+### DEC-021 — Normalized product attribute and option model
+**Status:** Implemented and verified (Phase B complete, 2026-11-12)
+**Date:** 2026-11-12
+**Branch:** `feature/catalog`
+
+Context:
+Task 004 left `product_variants.variant_key` as a free-form, per-product unique
+string with no normalized definition of what a variant dimension or option is.
+Task 005 needs reusable global attribute definitions, owned options,
+product-to-attribute assignments and unambiguous variant-to-option selections,
+without breaking the variant-first architecture, variant SKU uniqueness, the
+default-variant invariant, product-scoped variant positions or the variant-keyed
+Inventory relationships.
+
+Proposed entity model:
+
+```
+ProductAttribute 1---* ProductAttributeOption
+ProductAttribute *---* Product          (product_attribute_product)
+Product          1---* ProductVariant
+ProductVariant   1---* ProductVariantAttributeOption *---1 ProductAttribute
+                                                     *---1 ProductAttributeOption
+```
+
+The variant remains the canonical purchasable unit. Inventory continues to
+reference `variant_id`; no Inventory table or action changes.
+
+Proposed tables:
+
+`product_attributes` (global definitions):
+- `id`
+- `code` string(100), globally unique, immutable machine identifier
+- `name` string(255), editable display name
+- `type` string(20), default `select`; only `select` is supported in Task 005
+- `is_variant_dimension` boolean, default `false`
+- `position` integer, default `0`
+- `is_active` boolean, default `true`
+- timestamps
+- unique `code`; index `(is_active, position)`
+
+`product_attribute_options` (options owned by one attribute):
+- `id`
+- `product_attribute_id` FK to `product_attributes`, cascade on delete
+- `code` string(100), immutable machine identifier, unique per attribute
+- `label` string(255), editable display label
+- `position` integer, default `0`
+- `is_active` boolean, default `true`
+- timestamps
+- unique `(product_attribute_id, code)`; unique `(id, product_attribute_id)`
+  (needed as the target of the composite FK below); index
+  `(product_attribute_id, position)`
+
+`product_attribute_product` (which attributes apply to a product):
+- `product_id` FK to `products`, cascade on delete
+- `product_attribute_id` FK to `product_attributes`, cascade on delete
+- composite primary key `(product_id, product_attribute_id)`
+- index on `product_attribute_id`
+
+`product_variant_attribute_options` (one selected option per attribute per
+variant):
+- `id`
+- `product_variant_id` FK to `product_variants`, cascade on delete
+- `product_attribute_id` FK to `product_attributes`, restrict on delete
+- `product_attribute_option_id` unsigned bigint
+- timestamps
+- unique `(product_variant_id, product_attribute_id)`
+- composite FK `(product_attribute_option_id, product_attribute_id)` references
+  `product_attribute_options (id, product_attribute_id)` with restrict on
+  delete, so an option can never be attached to a different attribute
+- index on `product_attribute_option_id`
+
+Relationship names:
+- `ProductAttribute::options()` hasMany; `ProductAttribute::products()`
+  belongsToMany.
+- `ProductAttributeOption::attribute()` belongsTo;
+  `ProductAttributeOption::variantSelections()` hasMany.
+- `Product::productAttributes()` belongsToMany. The relation must **not** be
+  named `attributes()` because Eloquent already uses the `$attributes` property.
+- `ProductVariant::attributeOptions()` hasMany to the selection model.
+- `ProductVariantAttributeOption` belongsTo the variant, attribute and option.
+
+Data integrity rules:
+- Attribute `code` is globally unique and immutable after creation. Option
+  `code` is unique per attribute and immutable after creation. Labels/names are
+  editable.
+- Only active attributes can be newly assigned to a product; only active
+  attributes and options can be newly selected by a variant. Task 005 product
+  assignment is limited to attributes with `is_variant_dimension = true`;
+  descriptive attributes and product-level values are deferred.
+- A product-attribute assignment is unique per `(product_id,
+  product_attribute_id)`.
+- A variant may hold at most one option per attribute, enforced by the unique
+  `(product_variant_id, product_attribute_id)` constraint.
+- The composite FK guarantees that the selected option belongs to the selected
+  attribute. Application validation additionally guarantees that the attribute
+  is assigned to the variant's product and is a variant dimension.
+- Variant option selection is complete: when a product has assigned variant
+  dimensions, a configured variant must select exactly one active option for
+  each dimension. A selection set containing an unknown, duplicate, inactive or
+  cross-product attribute/option is rejected with `ValidationException`.
+- Definitions and options are deactivated rather than hard-deleted once
+  referenced. Hard deletion is allowed only when the attribute is not assigned
+  to any product and the option is not selected by any variant; otherwise the
+  operation is rejected.
+- All multi-row writes run inside a database transaction with row locking.
+
+Relationship with `variant_key`:
+- `product_variants.variant_key` remains the authoritative per-product unique
+  combination signature and its existing unique index is retained.
+- For variants with normalized option selections, `variant_key` is derived
+  deterministically as `attributeCode:optionCode` pairs sorted by attribute
+  `position` then `code`, joined with `|` (for example
+  `color:red|size:m`). Codes are immutable, so the key is stable.
+- When option selections are supplied, a manually supplied `variant_key` must
+  be absent or equal to the derived key; otherwise the operation is rejected.
+- Variants without normalized selections keep the current behaviour: an
+  optional manual `variant_key`, unique per product when present.
+- Existing `variant_key` values and existing variant administration tests remain
+  valid; no backfill is required.
+
+Proposed contracts and actions (all in Catalog):
+- Definitions: `FindsProductAttributes`, `CreatesProductAttributes`,
+  `UpdatesProductAttributes`, `DeletesProductAttributes` with matching actions
+  and `CreateProductAttributeData` / `UpdateProductAttributeData`.
+- Options: `FindsProductAttributeOptions`, `CreatesProductAttributeOptions`,
+  `UpdatesProductAttributeOptions`, `DeletesProductAttributeOptions` with
+  matching actions and `CreateProductAttributeOptionData` /
+  `UpdateProductAttributeOptionData`.
+- Product assignment: `AssignsProductAttributes`,
+  `RemovesProductAttributes`, `SyncsProductAttributes` with matching actions.
+- Variant mapping: `SyncsVariantAttributeOptions` /
+  `SyncVariantAttributeOptions` / `SyncVariantAttributeOptionsData`.
+- Integration: `CreateProductVariantData` and `UpdateProductVariantData` gain an
+  optional `attributeOptions` array. When supplied, the existing
+  `CreateProductVariant` / `UpdateProductVariant` actions apply the same
+  validation and key derivation inside their existing transaction, so variant
+  creation/editing stays atomic and does not bypass variant administration.
+- Support: `Support\AttributeType` (`select`) and `Support\VariantKey` for key
+  derivation/normalization.
+- Policies: `ProductAttributePolicy`, `ProductAttributeOptionPolicy`
+  (admin-only; deletion additionally guarded by reference checks).
+  `ProductPolicy` gains `manageAttributes` for the product assignment UI.
+
+Proposed Filament administration:
+- `AttributeResource` under `Filament/Resources/Attributes/` with list, create
+  and edit pages for definitions.
+- `OptionsRelationManager` on the attribute edit page for option CRUD and
+  reordering.
+- `ProductAttributesRelationManager` on the product edit page for
+  attach/detach, delegating to the assignment contracts.
+- `ProductVariantForm` gains an option-selection component for the product's
+  assigned variant dimensions (initially a `Repeater` of attribute/option
+  pairs, transformed to `[attribute_id => option_id]`; a dynamic per-dimension
+  form can replace it later). The action, not Filament, enforces completeness
+  and uniqueness.
+- All writes route through Catalog contracts; Filament duplicates no business
+  rules.
+
+Migration and backward compatibility:
+- New untimestamped Catalog migrations, named `z07_create_product_attributes_table`,
+  `z08_create_product_attribute_options_table`,
+  `z09_create_product_attribute_product_table` and
+  `z10_create_product_variant_attribute_options_table`. The `z03`–`z06`
+  prefixes are already used by Inventory migrations, so they must not be
+  reused.
+- No existing table is altered and no data backfill is required.
+- Existing variants, manual `variant_key` values, SKUs, positions, default
+  variants and Inventory rows are unaffected.
+- PostgreSQL verification included a fresh `migrate:fresh`, rollback and
+  re-apply on a throwaway database, plus the full test suite.
+
+Resolved questions:
+1. Confirmed: `variant_key` derivation uses immutable
+   `attributeCode:optionCode` pairs, not option IDs.
+2. Confirmed: only the `select` attribute type is in scope for Task 005;
+   text/number/boolean are deferred.
+3. Confirmed: product-level attribute *values* (for example Material = Cotton)
+   are out of scope; Task 005 stores assignments and variant option selections
+   only.
+4. Confirmed: a variant of a dimensioned product must select one option per
+   assigned variant dimension when its options are created or edited.
+   Pre-existing variants without selections remain valid until edited.
+   Requiring full configuration before publication remains a future decision.
+5. Confirmed: definitions/options are deactivated rather than hard-deleted once
+   referenced, with guarded hard deletion only when unreferenced.
+
+### Implementation outcome (verified 2026-11-12)
+
+All five tables, contracts, actions, data objects, policies, Filament
+administration and tests described above were implemented on `feature/catalog`.
+No deviations from the approved entity model or integrity rules were made.
+
+- Migrations `z07`–`z10` applied, rolled back and re-applied cleanly on a
+  throwaway PostgreSQL database.
+- `variant_key` is derived as approved; existing manual keys and unconfigured
+  variants remain valid.
+- Inventory was not modified; variant option changes do not touch inventory rows
+  or stock movements.
+- Catalog focused suite: 265 passed (862 assertions). Inventory focused suite:
+  52 passed (174 assertions). Full suite: 348 passed, 3 failed (1117
+  assertions); the three failures are the known pre-existing authentication and
+  post-create page failures.
+- Pint and module PHPStan (Catalog and Inventory) pass.
+- Filament administration: `AttributeResource` with `OptionsRelationManager`,
+  `ProductAttributesRelationManager`, and per-dimension option selects in
+  `ProductVariantForm`. All writes delegate to Catalog contracts.
+
 ## Decision protocol
 
 For each new decision, record:

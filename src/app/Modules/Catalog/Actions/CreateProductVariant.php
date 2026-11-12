@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\Catalog\Actions;
 
 use App\Modules\Catalog\Contracts\CreatesProductVariants;
+use App\Modules\Catalog\Contracts\SyncsVariantAttributeOptions;
 use App\Modules\Catalog\Data\CreateProductVariantData;
+use App\Modules\Catalog\Data\SyncVariantAttributeOptionsData;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Catalog\Support\UniqueSku;
@@ -15,6 +17,10 @@ use Illuminate\Validation\Rule;
 
 final class CreateProductVariant implements CreatesProductVariants
 {
+    public function __construct(
+        private readonly SyncsVariantAttributeOptions $syncVariantAttributeOptions,
+    ) {}
+
     public function handle(Product $product, CreateProductVariantData $data): ProductVariant
     {
         $validated = Validator::make(
@@ -58,6 +64,13 @@ final class CreateProductVariant implements CreatesProductVariants
                 'is_active' => $isFirstVariant ? true : $data->isActive,
                 'position' => $position,
             ]);
+
+            if ($data->attributeOptions !== null) {
+                $this->syncVariantAttributeOptions->handle(
+                    $variant,
+                    new SyncVariantAttributeOptionsData($data->attributeOptions, $data->variantKey),
+                );
+            }
 
             $this->normalizePositions($current);
 

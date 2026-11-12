@@ -57,19 +57,21 @@ final class ProductVariantsTable
                                 sku: $data['sku'] ?? null,
                                 label: $data['label'] ?? null,
                                 variantKey: $data['variant_key'] ?? null,
+                                attributeOptions: self::attributeOptions($product, $data),
                             ),
                         );
                     }),
             ])
             ->recordActions([
                 EditAction::make()
-                    ->using(function (ProductVariant $record, array $data): ProductVariant {
+                    ->using(function (ProductVariant $record, array $data) use ($product): ProductVariant {
                         return app(UpdatesProductVariants::class)->handle(
                             $record,
                             new UpdateProductVariantData(
                                 sku: $data['sku'] ?? null,
                                 label: $data['label'] ?? null,
                                 variantKey: $data['variant_key'] ?? null,
+                                attributeOptions: self::attributeOptions($product, $data),
                             ),
                         );
                     }),
@@ -107,5 +109,34 @@ final class ProductVariantsTable
                 app(RepositionsProductVariants::class)->handle($product, $order);
             })
             ->defaultSort('position');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>|null
+     */
+    private static function attributeOptions(Product $product, array $data): ?array
+    {
+        $dimensionIds = $product->productAttributes()
+            ->where('product_attributes.is_variant_dimension', true)
+            ->pluck('product_attributes.id')
+            ->all();
+
+        if ($dimensionIds === []) {
+            return null;
+        }
+
+        $raw = $data['attribute_options'] ?? [];
+        $options = [];
+
+        foreach ($dimensionIds as $attributeId) {
+            $value = $raw[$attributeId] ?? null;
+
+            if ($value !== null && $value !== '') {
+                $options[(int) $attributeId] = (int) $value;
+            }
+        }
+
+        return $options;
     }
 }

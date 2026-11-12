@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-11
+**Last inspected:** 2026-11-12
 **Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `d44f6e8` — `feat(catalog): implemented catalog variant foundation & inventory variant re-key`
+**Latest commit at inspection:** `cfe11b6` — `feat(catalog): implemented catalog product variant Administration`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -61,7 +61,7 @@ Observed capabilities/files include:
 The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product, category and variant foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
+**Status:** Product, category, variant and attribute/option foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized product attributes and options, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
@@ -70,6 +70,8 @@ Observed files include:
 - Product variants: `ProductVariant` model with `defaultVariant()`/`isDefault()` helpers, `ProductVariantFactory`, `z01_create_product_variants_table.php`, `z02_backfill_default_product_variants.php`, `Support/UniqueSku.php` and `Support/DefaultVariantBackfill.php`.
 - Variant administration: `FindProductVariant`, `CreateProductVariant`, `UpdateProductVariant`, `TransitionProductVariantStatus` and `RepositionProductVariants` actions; `FindsProductVariants`, `CreatesProductVariants`, `UpdatesProductVariants`, `TransitionsProductVariantStatus` and `RepositionsProductVariants` contracts; `CreateProductVariantData` and `UpdateProductVariantData`; `ProductVariantPolicy`.
 - Variant Filament administration: `Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`, `Schemas/ProductVariantForm.php` and `Tables/ProductVariantsTable.php`.
+- Product attributes and options: `ProductAttribute`, `ProductAttributeOption` and `ProductVariantAttributeOption` models; `ProductAttributeFactory`, `ProductAttributeOptionFactory` and `ProductVariantAttributeOptionFactory`; `Support/AttributeType` and `Support/VariantKey`; `z07`–`z10` migrations; definition/option CRUD, product assignment, variant option sync and option repositioning contracts/actions; `CreateProductAttributeData`, `UpdateProductAttributeData`, `CreateProductAttributeOptionData`, `UpdateProductAttributeOptionData` and `SyncVariantAttributeOptionsData`; `ProductAttributePolicy` and `ProductAttributeOptionPolicy`; `Product::productAttributes()` and `ProductVariant::attributeOptions()`.
+- Attribute Filament administration: `Filament/Resources/Attributes/*` (resource, form, table, pages and `OptionsRelationManager`) and `ProductAttributesRelationManager` on the product edit page.
 - Product status: `Support/ProductStatus` backed enum (`draft`, `published`, `archived`).
 - Category: `Category` model, `CategoryFactory`, `create_categories_table.php`, `CreateCategory`, `UpdateCategory`, `FindCategory` and `DeleteCategory` actions, `CreatesCategories`, `UpdatesCategories`, `FindsCategories` and `DeletesCategories` contracts, `CreateCategoryData` and `UpdateCategoryData`.
 - Product-category pivot: `create_z_category_product_table.php`.
@@ -168,12 +170,31 @@ Verified on 2026-11-11 (product variant administration):
 - Focused tests: `ProductVariantAdministrationTest.php` (27 tests, 95 assertions) and `ProductVariantResourceTest.php` (9 tests, 44 assertions).
 - Catalog focused suite after Task 004: 180 passed (570 assertions).
 
+Verified on 2026-11-12 (normalized product attributes and options, Task 005):
+- Global attribute definitions (`product_attributes`) and options owned by one attribute (`product_attribute_options`) exist with immutable codes, editable names/labels, active flags, positions and per-attribute option code uniqueness.
+- Products can be assigned attributes through `product_attribute_product`; only active variant dimensions are assignable in Task 005, and assignment is idempotent and per-product.
+- Variants select at most one option per attribute through `product_variant_attribute_options`; the composite foreign key guarantees the option belongs to the selected attribute.
+- Configured variants must select exactly one option for every variant dimension assigned to their product; incomplete, duplicate, cross-product, unknown, mismatched and newly-inactive selections are rejected with `ValidationException`.
+- `variant_key` is derived from immutable `attributeCode:optionCode` pairs sorted by attribute position then code, joined with `|` (for example `size:m|color:red`). A manually supplied key must match the derived key. Unconfigured variants keep the optional manual key behaviour.
+- Definitions/options are deactivated when referenced; guarded hard deletion is allowed only when unreferenced, and removing an attribute that a product variant still selects is rejected.
+- Attribute and option writes run in transactions with row locking; variant option changes do not touch inventory rows or stock movements.
+- Filament adds an `AttributeResource` with option CRUD/reordering, a `ProductAttributesRelationManager` on the product edit page and dynamic per-dimension option selects in the variant form; all writes delegate to Catalog contracts.
+- `ProductAttributePolicy` and `ProductAttributeOptionPolicy` are admin-only; `ProductPolicy` adds `manageAttributes`.
+- Focused tests: 53 business tests (108 assertions), `ProductAttributeResourceTest` (14 tests, 85 assertions), `ProductAttributeAssignmentFilamentTest` (5 tests, 21 assertions) and `ProductVariantAttributeOptionsFilamentTest` (5 tests, 49 assertions).
+- Catalog focused suite after Task 005: 265 passed (862 assertions).
+- Inventory focused suite after Task 005: 52 passed (174 assertions).
+- Full suite after Task 005: 348 passed, 3 failed (1117 assertions); the three failures are the known pre-existing authentication and post-create page failures.
+- Fresh PostgreSQL `migrate:fresh` succeeded on a throwaway database; `z07`–`z10` rolled back and re-applied cleanly.
+- Pint and module PHPStan (Catalog, Inventory) pass.
+
 Remaining gaps:
 - No product deletion action is exposed in the admin layer.
 - `UpdateProduct` cannot clear a description and `UpdateCategory` cannot clear a parent to root through the forms; both are existing contract limitations.
 - `UpdateProductVariant` treats `null` as "not provided", so the form cannot clear a label or variant key.
 - Admin access is a single boolean; roles and granular permissions are future work.
-- Brands, attributes/options, media and pricing remain undecided or unimplemented.
+- Brands, media and pricing remain undecided or unimplemented.
+- Attribute support is limited to `select` variant dimensions; descriptive attribute values, text/number/boolean types and product-level values are deferred.
+- Publication does not yet require every variant of a dimensioned product to be configured.
 - Names are not unique; duplicate names receive suffixed slugs.
 
 ### Inventory
@@ -256,12 +277,13 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-11 on `feature/catalog`.
+The repository was inspected on 2026-11-12 on `feature/catalog`.
 
-- `feature/catalog` HEAD is `d44f6e8` (`feat(catalog): implemented catalog variant foundation & inventory variant re-key`).
-- Task 003 (variant foundation and Inventory variant re-key) is committed at that HEAD.
-- The working tree contains the uncommitted Task 004 product variant administration: new actions, contracts, data objects, policy, Filament relation manager, tests and documentation updates.
-- Nothing from Task 004 has been committed.
+- `feature/catalog` HEAD is `cfe11b6` (`feat(catalog): implemented catalog product variant Administration`).
+- Task 003 (variant foundation and Inventory variant re-key) and Task 004 (product variant administration) are committed at that HEAD.
+- Task 005 (normalized product attributes and options) is implemented and verified in the working tree but **not committed**; HEAD is still `cfe11b6`.
+- Task 005 changes include documentation, four Catalog migrations (`z07`–`z10`), models, factories, support classes, contracts, actions, data objects, policies, Filament resources and tests.
+- `git diff --check` is clean. Do not commit, merge or reset without authorization.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
 
@@ -304,12 +326,17 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After the Catalog Filament administration layer: **204 passed, 3 failed (622 assertions)**.
 - After Task 003 (variant foundation + Inventory variant re-key): **227 passed, 3 failed (686 assertions)**.
 - After Task 004 (product variant administration): **263 passed, 3 failed (825 assertions)**.
-- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004.
-- Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004.
-- Inventory focused suite: 44 passed (147 assertions) before Task 003; **52 passed (174 assertions)** after Task 003.
+- After Task 005 (normalized product attributes and options): **348 passed, 3 failed (1117 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004; **265 passed (862 assertions)** after Task 005.
+- Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004; **69 passed (334 assertions)** after Task 005.
+- Inventory focused suite: 44 passed (147 assertions) before Task 003; **52 passed (174 assertions)** after Task 003 and after Task 005.
 - `ProductVariantFoundationTest.php`: 10 passed (19 assertions).
 - `ProductVariantAdministrationTest.php`: 27 passed (95 assertions).
 - `ProductVariantResourceTest.php`: 9 passed (44 assertions).
+- `ProductAttributeAdministrationTest.php`, `ProductAttributeOptionAdministrationTest.php`, `ProductAttributeAssignmentTest.php` and `ProductVariantAttributeOptionsTest.php`: 53 passed (108 assertions) combined.
+- `ProductAttributeResourceTest.php`: 14 passed (85 assertions).
+- `ProductAttributeAssignmentFilamentTest.php`: 5 passed (21 assertions).
+- `ProductVariantAttributeOptionsFilamentTest.php`: 5 passed (49 assertions).
 - `ProductCreationTest.php`: 14 passed (46 assertions).
 - `InventoryFoundationTest.php`: 18 passed (51 assertions).
 - `StockMovementTest.php`: 15 passed (62 assertions).
@@ -339,7 +366,7 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Implement attributes/options, then media, then the Pricing module, in that order.
+3. Implement media, then the Pricing module. Attribute/option foundations are complete (Task 005); descriptive attribute values remain deferred.
 4. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
 5. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
 6. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.

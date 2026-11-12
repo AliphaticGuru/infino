@@ -6,9 +6,11 @@ namespace App\Modules\Catalog\Models;
 
 use App\Modules\Catalog\Database\Factories\ProductVariantFactory;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -21,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Product $product
+ * @property-read Collection<int, ProductVariantAttributeOption> $attributeOptions
  */
 final class ProductVariant extends Model
 {
@@ -49,6 +52,14 @@ final class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return HasMany<ProductVariantAttributeOption, $this>
+     */
+    public function attributeOptions(): HasMany
+    {
+        return $this->hasMany(ProductVariantAttributeOption::class);
     }
 
     /**
