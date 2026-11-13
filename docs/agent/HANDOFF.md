@@ -1,8 +1,8 @@
 # Infino — Current Agent Handoff
 
-**Last updated:** 2026-11-12
+**Last updated:** 2026-11-13
 **Branch at last inspection:** `feature/catalog`
-**Latest commit at last inspection:** `cfe11b6` — `feat(catalog): implemented catalog product variant Administration`
+**Latest commit at last inspection:** `74dcd79` — `feat(catalog): implemented catalog product attributes & options foundation`
 
 ## Objective
 
@@ -13,12 +13,19 @@ default variant for every product and re-keyed Inventory from `product_id` to
 deactivation, positioning and Filament administration for multiple variants and
 is committed at `cfe11b6`.
 
-Task 005 (normalized product attributes and options) is **implemented and
-verified in the working tree but not committed**. DEC-021 is recorded as
-implemented. The work adds global attribute definitions, owned options, product
-assignments, variant option selections, derived `variant_key` values and
-Filament administration. Do not commit, merge or reset without authorization.
-Keep Cart, Checkout, Orders and Payments untouched.
+Task 005 (normalized product attributes and options) is **implemented, verified
+and committed at `74dcd79`**. DEC-021 is recorded as implemented. The work adds
+global attribute definitions, owned options, product assignments, variant option
+selections, derived `variant_key` values and Filament administration.
+
+Task 006 (product media and galleries) is **implemented and verified in the
+working tree but not committed**. DEC-022 is accepted and implemented. The work
+adds `product_media`, the `MediaStorage` abstraction, six media
+contracts/actions, product/variant galleries with gallery-scoped ordering and
+primary images, server-side upload validation, admin policies and the
+`MediaRelationManager`. Do not begin Pricing until Task 006 is committed. Do not
+commit, merge or reset without authorization. Keep Cart, Checkout, Orders and
+Payments untouched.
 
 ## Read first
 
@@ -30,19 +37,21 @@ Keep Cart, Checkout, Orders and Payments untouched.
 6. `docs/agent/DECISIONS.md` (especially DEC-019, DEC-020 and DEC-021)
 7. `docs/agent/modules/CATALOG.md`
 8. `docs/agent/tasks/active/005-catalog-product-attributes-and-options.md`
-9. This handoff.
-10. `src/AGENTS.md` before Laravel application changes.
+9. `docs/agent/tasks/active/006-catalog-product-media.md`
+10. This handoff.
+11. `src/AGENTS.md` before Laravel application changes.
 
 ## Important repository protection
 
-The working tree contains uncommitted Task 005 implementation on top of the
-committed Task 004 at `cfe11b6`. Nothing in Task 005 has been committed.
+Task 005 is committed at `74dcd79`. Task 006 (product media) is implemented and
+verified but **uncommitted** unless the current `git status` shows otherwise.
 
 Do not:
 - Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
 - Stash or discard user changes.
 - Commit, merge or push without authorization.
 - Rewrite existing application files without inspecting their diffs.
+- Begin Pricing before Task 006 is committed.
 
 Run `git status --short` again before doing anything. The recorded state is historical.
 
@@ -71,15 +80,29 @@ logic bug.
 - Modules present: Core, Identity, Catalog, Inventory and TestModule.
 - Catalog product/category foundations, retrieval/update, publication lifecycle,
   product-category assignment, category retrieval/deletion, variant foundation,
-  variant administration and the Filament admin layer: verified.
+  variant administration, normalized attributes/options, product media/galleries
+  and the Filament admin layer: verified.
+- Task 005 committed at `74dcd79`.
+- Task 006 product media: **implemented and verified, uncommitted**. Adds
+  `z11_create_product_media_table.php`, `ProductMedia`, `MediaStorage`, six media
+  contracts/actions, policies, `config/catalog.php` and
+  `MediaRelationManager`.
+- No Spatie Media Library, Intervention Image, GD or Imagick is installed.
+  `getimagesize()` is available, `FILESYSTEM_DISK=local`, and the `public` and
+  `s3` disks are configured but `public/storage` is not linked.
 - Inventory variant-keyed stock, movement history and read/reporting: verified.
-- Catalog focused suite after Task 005: **265 passed (862 assertions)**.
-- Catalog Filament suite after Task 005: **69 passed (334 assertions)**.
+- Catalog focused suite after Task 006: **337 passed (1073 assertions)**.
+- Task 006 media tests: **72 passed (211 assertions)**.
 - Inventory focused suite: **52 passed (174 assertions)**.
-- Full suite after Task 005: **348 passed, 3 failed (1117 assertions)**.
-- Pint on changed Catalog/Inventory source and tests: passed.
-- PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
-- Full-project PHPStan: 21 pre-existing errors outside Catalog/Inventory.
+- Full suite after Task 006: **420 passed, 3 failed (1328 assertions)**; the 3
+  failures are the known pre-existing `AuthenticationTest`,
+  `TwoFactorChallengeTest` and `PostCreatePageTest`.
+- Pint on changed Task 006 files: passed.
+- PHPStan on `app/Modules/Catalog` and `config/catalog.php`: no errors.
+- PostgreSQL `migrate:fresh`, `z11` rollback/re-apply, partial unique indexes and
+  the composite FK: verified.
+- Full-project PHPStan was not re-run for Task 006; the last recorded baseline
+  had 21 pre-existing errors outside Catalog/Inventory.
 - Fresh PostgreSQL `migrate:fresh` was verified during Task 003 and again during
   Task 005 on throwaway databases.
 - Task 003 migrations roll back (`--step=7`) and re-apply cleanly. Task 005
@@ -197,6 +220,38 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
   assertions).
 - Decision recorded as DEC-021 in `docs/agent/DECISIONS.md`.
 
+## Implemented product media architecture (Task 006)
+
+The Task 006 implementation provides:
+
+- Catalog-owned `product_media` and `ProductMedia` model; no separate Media
+  module yet.
+- A Catalog-owned `MediaStorage` contract backed by Laravel `Storage`, so local
+  `public` storage and future S3-compatible storage share one domain path.
+- Product-level media (`product_variant_id = null`) and variant-specific media,
+  with gallery-scoped `position` and `is_primary`.
+- One primary per gallery; first image auto-primary; deleting the primary
+  promotes the next image.
+- Variant gallery/primary fallback to the product gallery when empty.
+- Contracts: `FindsProductMedia`, `AddsProductMedia`, `UpdatesProductMedia`,
+  `SetsPrimaryProductMedia`, `DeletesProductMedia`, `RepositionsProductMedia`.
+- Filament `MediaRelationManager` on the product edit page with gallery tabs,
+  contract-backed upload/edit/set-primary/delete/move actions and a dynamic
+  `ImageColumn` disk.
+- `ProductPolicy::manageMedia` and `ProductMediaPolicy`, admin-only.
+- Server-side image validation (JPEG/PNG/WebP/GIF, 5 MB default, 8000 × 8000
+  cap, SVG rejected), generated ULID filenames and sanitized original names.
+- No image conversion, thumbnails, EXIF stripping or new dependencies.
+- Migration `z11_create_product_media_table.php`, with a composite
+  `(product_variant_id, product_id)` FK and PostgreSQL-only partial unique
+  indexes for primary images.
+- Documented limitations: cascade deletes can orphan files; a future
+  `catalog:prune-media` command is required. EXIF/GPS metadata is retained
+  until an approved image-processing step exists.
+
+Implementation and tests for Task 006 are complete and verified; DEC-022 is
+accepted. The implementation is uncommitted pending authorization.
+
 ## Implemented Filament administration layer
 
 - Identity users carry an `is_admin` boolean; `User` implements `FilamentUser`
@@ -240,19 +295,17 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 
 ## Immediate task sequence
 
-### Option A — Commit Task 005 (recommended first)
+### Option A — Commit Task 006 (recommended next)
 
-- Review the uncommitted Task 005 diff and obtain authorization to commit.
+- Review the uncommitted Task 006 diff and obtain authorization to commit.
 - Do not push or merge without separate authorization.
 - Confirm the working tree remains clean and documentation matches the diff.
+- Do not add Spatie Media Library, Intervention Image or an image-processing
+  dependency.
+- Deferred follow-ups: thumbnails/conversions, EXIF stripping,
+  `catalog:prune-media`, `storage:link` setup and the production S3 URL strategy.
 
-### Option B — Media
-
-- Add product media using the Laravel `public` disk and Filament `FileUpload`.
-- Keep media owned by Catalog and do not add pricing or order concerns.
-- Add focused tests for upload, replacement and deletion.
-
-### Option C — Expose Inventory movement history
+### Option B — Expose Inventory movement history
 
 - Add an authorised read layer (Filament page or API resource) over
   `StockMovementReadService`.
@@ -260,7 +313,7 @@ Do not modify them as part of Catalog or Inventory work unless explicitly author
 - Add tests for variant/product filtering, pagination and access control.
 - Keep adjustment and movement-write behaviour unchanged.
 
-### Option D — Descriptive attribute values
+### Option C — Descriptive attribute values
 
 - Extend the attribute model beyond `select` variant dimensions only after a
   decision on product-level values and text/number/boolean types.

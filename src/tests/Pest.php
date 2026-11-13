@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 /*
@@ -47,4 +48,26 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Build a real image upload without GD.
+ */
+function mediaUpload(string $name = 'photo.png', ?string $fixture = null): UploadedFile
+{
+    $fixture ??= str_ends_with(strtolower($name), '.jpg') || str_ends_with(strtolower($name), '.jpeg')
+        ? 'pixel.jpg'
+        : 'pixel.png';
+
+    $path = __DIR__.'/Fixtures/images/'.$fixture;
+
+    return UploadedFile::fake()->createWithContent($name, (string) file_get_contents($path));
+}
+
+/**
+ * Read the raw bytes of an image fixture.
+ */
+function mediaFixture(string $fixture = 'pixel.png'): string
+{
+    return (string) file_get_contents(__DIR__.'/Fixtures/images/'.$fixture);
 }

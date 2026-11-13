@@ -49,7 +49,7 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, variant administration, normalized attributes/options, the Filament admin layer and the variant-first foundation are complete; media and pricing remain
+**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, variant administration, normalized attributes/options, product media/galleries, the Filament admin layer and the variant-first foundation are complete; pricing remains
 
 Suggested sequence:
 1. ~~Verify Catalog module registration.~~ Complete.
@@ -64,7 +64,8 @@ Suggested sequence:
 10. ~~Integrate the administrative workflow.~~ Complete for products, categories, product variants and attributes/options.
 11. ~~Add variant administration (multiple variants, editing, deactivation, positions).~~ Complete: retrieval, creation, update, activation/deactivation, product-scoped positioning and Filament relation-manager administration (DEC-020, 2026-11-11).
 12. ~~Add normalized product attributes and options.~~ Complete: global definitions, owned options, product assignments, variant selections, derived variant keys and Filament administration (DEC-021, 2026-11-12). Descriptive values and non-`select` types remain future scope.
-13. Add media, then the Pricing module.
+13. ~~Implement product media and galleries.~~ Complete: Catalog-owned `product_media`, `MediaStorage` abstraction, product/variant galleries with gallery-scoped ordering and primary images, server-side validation, contract-backed Filament relation-manager administration and PostgreSQL enforcement (Task 006, DEC-022, 2026-11-13). Thumbnails, conversions, EXIF stripping and orphan-file pruning remain deferred.
+14. Add the Pricing module.
 
 Completion criteria:
 - Product persistence is tested.

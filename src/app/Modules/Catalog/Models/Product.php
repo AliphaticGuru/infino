@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read Collection<int, ProductVariant> $variants
  * @property-read ProductVariant|null $defaultVariant
  * @property-read Collection<int, ProductAttribute> $productAttributes
+ * @property-read Collection<int, ProductMedia> $media
+ * @property-read ProductMedia|null $primaryMedia
  */
 final class Product extends Model
 {
@@ -82,5 +84,37 @@ final class Product extends Model
     public function productAttributes(): BelongsToMany
     {
         return $this->belongsToMany(ProductAttribute::class, 'product_attribute_product');
+    }
+
+    /**
+     * All media rows owned by the product, across both galleries.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function allMedia(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class, 'product_id')
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    /**
+     * The product-level gallery images (variant_id is null), ordered by position.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->allMedia()->whereNull('product_variant_id');
+    }
+
+    /**
+     * The product primary image, or the first product image by position as a
+     * fallback.
+     */
+    public function primaryMedia(): ?ProductMedia
+    {
+        return $this->media()->where('is_primary', true)->first()
+            ?? $this->media()->first();
     }
 }

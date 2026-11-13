@@ -531,6 +531,158 @@ No deviations from the approved entity model or integrity rules were made.
   `ProductAttributesRelationManager`, and per-dimension option selects in
   `ProductVariantForm`. All writes delegate to Catalog contracts.
 
+### DEC-022 — Product media is Catalog-owned with a storage abstraction
+**Status:** Accepted (implemented and verified 2026-11-13)
+**Date:** 2026-11-12
+**Branch:** `feature/catalog`
+**Task:** `docs/agent/tasks/active/006-catalog-product-media.md`
+
+Context:
+Task 005 completed normalized product attributes and options. Product media and
+galleries are the next Catalog capability in the Product Blueprint and roadmap.
+The repository currently has no media package, no image-processing extension
+(only `fileinfo`; GD and Imagick are absent), no `public/storage` link, and
+`FILESYSTEM_DISK=local`. Product images are public catalog assets that must work
+on local development storage now and S3-compatible storage later without
+changing the domain model.
+
+Options considered:
+
+1. **Catalog-owned `ProductMedia` with a `MediaStorage` abstraction
+   (recommended).** Product and variant galleries stay inside Catalog; all
+   filesystem work is isolated behind one contract.
+2. Separate Media module. Rejected for now: Catalog is the only consumer, and a
+   new module would add manifests, dependencies, migrations and contracts before
+   a second consumer exists. The storage contract keeps extraction cheap later.
+3. Spatie Media Library. Rejected: new dependency, polymorphic media table and
+   conversion pipeline are more than required; conversions need an image driver
+   that is not installed.
+4. Intervention Image or server-side thumbnails. Rejected: new dependency and a
+   runtime change for GD/Imagick that has not been approved.
+5. Database byte storage or external-URL-only media. Rejected: database bloat,
+   backup growth, no ownership or link rot.
+
+Decision:
+
+- Catalog owns `ProductMedia` and product/variant galleries.
+- A Catalog-owned `MediaStorage` contract isolates storage operations. The first
+  implementation uses Laravel's `Storage` facade; it is extracted to Core or a
+  Media module only when a second consumer exists.
+- The default development disk is Laravel's `public` disk with
+  `php artisan storage:link`. `FILESYSTEM_DISK` stays `local`; Catalog selects
+  its media disk explicitly through `config/catalog.php`.
+- Production may use the existing `s3` disk by changing `CATALOG_MEDIA_DISK`
+  and the standard `AWS_*` variables. The `disk` is stored per row so existing
+  media remains readable after a move.
+- No image conversion, resizing, thumbnail generation or EXIF stripping in the
+  first release. Images are served at original size. A future conversion step
+  requires a separately approved dependency and runtime change.
+- SVG and other script-capable formats are rejected. Allowed formats are JPEG,
+  PNG, WebP and GIF, with a 5 MB default limit and an 8000 × 8000 dimension cap.
+
+Schema `product_media`:
+
+- `id`
+- `product_id` FK to `products`, cascade
+- `product_variant_id` FK to `product_variants`, cascade, nullable
+- `disk` string(50), default `public`
+- `path` string(1024), generated server-side
+- `original_name` string(255), nullable, sanitized
+- `mime_type` string(100), nullable
+- `size` unsigned bigint, nullable
+- `width`, `height` unsigned integer, nullable
+- `alt_text` string(255), nullable
+- `position` unsigned integer, default `0`
+- `is_primary` boolean, default `false`
+- timestamps
+- indexes `(product_id, position)`, `(product_variant_id, position)` and
+  `(product_id, is_primary)`
+- composite FK `(product_variant_id, product_id)` to
+  `product_variants (id, product_id)` with cascade, backed by an additive unique
+  index on `product_variants (id, product_id)`
+- PostgreSQL-only partial unique indexes enforce one primary per product
+  gallery and one primary per variant gallery. SQLite tests rely on
+  transactional application enforcement.
+
+Gallery rules:
+
+- Product-level media has `product_variant_id = null`; variant media references
+  a variant owned by the same product.
+- `position` is scoped to one gallery and normalized to `0..n-1`.
+- At most one primary exists per gallery. The first image in an empty gallery
+  becomes primary; setting a new primary clears the previous one; deleting the
+  primary promotes the next image by `position` then `id`.
+- Variant gallery reads fall back to the product gallery when the variant has no
+  images. Variant primary resolution is variant primary, then product primary,
+  then product first image, then `null`.
+- Variant association is immutable after upload; moving an image requires delete
+  and re-upload.
+
+Contracts and actions (all in Catalog):
+
+- `FindsProductMedia` / `FindProductMedia`
+- `AddsProductMedia` / `AddProductMedia` / `AddProductMediaData`
+- `UpdatesProductMedia` / `UpdateProductMedia` / `UpdateProductMediaData`
+- `SetsPrimaryProductMedia` / `SetPrimaryProductMedia`
+- `DeletesProductMedia` / `DeleteProductMedia`
+- `RepositionsProductMedia` / `RepositionProductMedia` /
+  `RepositionProductMediaData`
+- `MediaStorage` / `FilesystemMediaStorage` / `StoredMediaData`
+
+Transactional consistency:
+
+- Upload stores the file first, then writes the row in a transaction. A failed
+  database write deletes the stored file before rethrowing.
+- Delete removes the row and promotes the next primary in a transaction, then
+  deletes the file after commit. A failed file delete is logged and does not
+  fail the request.
+- Primary and reorder operations lock the affected gallery rows.
+- Database cascades from product or variant deletion cannot clean up files; a
+  future `catalog:prune-media` command will reconcile storage against the
+  database. This limitation is documented.
+
+Filament administration:
+
+- `MediaRelationManager` on the product edit page with gallery tabs for the
+  product and each variant.
+- Upload action uses `FileUpload::storeFiles(false)` and calls
+  `AddsProductMedia`; Filament never stores or creates records directly.
+- Alt-text editing, set-primary, delete and move-up/move-down actions call the
+  corresponding contracts. Built-in drag reordering is not used because it
+  writes positions directly.
+- `ImageColumn` reads the row's `disk`.
+- `ProductPolicy::manageMedia` and `ProductMediaPolicy` restrict all media
+  administration to admins.
+
+Consequences and migration implications:
+
+- New additive migration `z11_create_product_media_table.php`; no existing table
+  is altered except for the additive unique index on
+  `product_variants (id, product_id)`.
+- No data backfill is required.
+- Inventory, attributes/options, variant keys, SKUs, positions and default
+  variants are unaffected.
+- `php artisan storage:link` becomes a required local setup step.
+- No Composer dependency is added.
+- Implemented and verified on 2026-11-13: Catalog focused suite 337 passed
+  (1073 assertions), Task 006 media tests 72 passed (211 assertions), Inventory
+  focused suite 52 passed (174 assertions), Pint and module PHPStan clean, and
+  PostgreSQL `migrate:fresh`/rollback/re-apply plus direct enforcement checks of
+  the partial unique indexes and composite FK succeeded.
+- Deferred follow-ups: thumbnails/conversions, EXIF stripping, a
+  `catalog:prune-media` reconciliation command, and the production S3-compatible
+  provider/public URL strategy.
+
+Resolved questions:
+
+1. Confirmed the 5 MB default limit and JPEG/PNG/WebP/GIF allowlist.
+2. Confirmed product-page gallery tabs for variant media.
+3. Confirmed variant-gallery fallback to the product gallery.
+4. Confirmed delete-and-re-upload for moving media between galleries.
+5. Confirmed that thumbnails, conversions and EXIF stripping are deferred.
+6. Production S3-compatible provider and public URL strategy remain a deployment
+   follow-up.
+
 ## Decision protocol
 
 For each new decision, record:

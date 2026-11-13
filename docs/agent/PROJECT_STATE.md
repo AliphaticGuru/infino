@@ -1,8 +1,8 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-12
+**Last inspected:** 2026-11-13
 **Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `cfe11b6` — `feat(catalog): implemented catalog product variant Administration`
+**Latest commit at inspection:** `74dcd79` — `feat(catalog): implemented catalog product attributes & options foundation`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -61,7 +61,7 @@ Observed capabilities/files include:
 The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product, category, variant and attribute/option foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized product attributes and options, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
+**Status:** Product, category, variant and attribute/option foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized product attributes and options, product media/galleries, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
 
 Observed files include:
 - `CatalogServiceProvider`
@@ -187,12 +187,28 @@ Verified on 2026-11-12 (normalized product attributes and options, Task 005):
 - Fresh PostgreSQL `migrate:fresh` succeeded on a throwaway database; `z07`–`z10` rolled back and re-applied cleanly.
 - Pint and module PHPStan (Catalog, Inventory) pass.
 
+Verified on 2026-11-13 (product media and galleries, Task 006):
+- Catalog owns `ProductMedia`; a Catalog-owned `MediaStorage` contract isolates filesystem access so local public storage and future S3-compatible storage share one domain path.
+- `product_media` supports product-level and variant-level galleries with gallery-scoped `position`, `is_primary`, `alt_text`, disk/path and image metadata.
+- Rules: one primary per gallery, first image auto-primary, primary promotion on delete, variant gallery/primary fallback to the product gallery, and complete-set gallery reordering.
+- Contracts: `FindsProductMedia`, `AddsProductMedia`, `UpdatesProductMedia`, `SetsPrimaryProductMedia`, `DeletesProductMedia` and `RepositionsProductMedia`.
+- Filament `MediaRelationManager` uses gallery tabs and contract-backed upload/edit/set-primary/delete/move actions; `FileUpload::storeFiles(false)` prevents Filament from bypassing the contract.
+- Security: server-side JPEG/PNG/WebP/GIF validation, 5 MB default limit, 8000 × 8000 dimension cap, SVG rejection, generated ULID filenames, sanitized original names and an allowed-disk list.
+- No image conversion, thumbnail, EXIF stripping, Spatie Media Library or Intervention Image is used because GD/Imagick are absent.
+- DEC-022 is accepted and implemented.
+- Catalog focused suite: 337 passed (1073 assertions). Task 006 media tests: 72 passed (211 assertions). Inventory focused suite: 52 passed (174 assertions).
+- Full suite: 420 passed, 3 known pre-existing failures (`AuthenticationTest`, `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Pint and module PHPStan (Catalog + `config/catalog.php`) pass.
+- PostgreSQL `migrate:fresh`, rollback of `z11` and re-apply verified; partial unique indexes and the composite FK enforced by direct inserts.
+- Full specification: `docs/agent/tasks/active/006-catalog-product-media.md`.
+
 Remaining gaps:
 - No product deletion action is exposed in the admin layer.
 - `UpdateProduct` cannot clear a description and `UpdateCategory` cannot clear a parent to root through the forms; both are existing contract limitations.
 - `UpdateProductVariant` treats `null` as "not provided", so the form cannot clear a label or variant key.
 - Admin access is a single boolean; roles and granular permissions are future work.
-- Brands, media and pricing remain undecided or unimplemented.
+- Brands and pricing remain undecided or unimplemented.
+- Product media thumbnails, conversions, EXIF stripping and orphan-file pruning remain deferred (Task 006, DEC-022).
 - Attribute support is limited to `select` variant dimensions; descriptive attribute values, text/number/boolean types and product-level values are deferred.
 - Publication does not yet require every variant of a dimensioned product to be configured.
 - Names are not unique; duplicate names receive suffixed slugs.
@@ -277,12 +293,12 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-12 on `feature/catalog`.
+The repository was inspected on 2026-11-13 on `feature/catalog`.
 
-- `feature/catalog` HEAD is `cfe11b6` (`feat(catalog): implemented catalog product variant Administration`).
-- Task 003 (variant foundation and Inventory variant re-key) and Task 004 (product variant administration) are committed at that HEAD.
-- Task 005 (normalized product attributes and options) is implemented and verified in the working tree but **not committed**; HEAD is still `cfe11b6`.
-- Task 005 changes include documentation, four Catalog migrations (`z07`–`z10`), models, factories, support classes, contracts, actions, data objects, policies, Filament resources and tests.
+- `feature/catalog` HEAD is `74dcd79` (`feat(catalog): implemented catalog product attributes & options foundation`).
+- Task 003 (variant foundation and Inventory variant re-key), Task 004 (product variant administration) and Task 005 (normalized product attributes and options) are committed at that HEAD.
+- Task 006 (product media and galleries) is implemented and verified in the working tree but **not committed** unless the current `git status` shows otherwise.
+- Task 006 adds `z11_create_product_media_table.php`, `ProductMedia`, the `MediaStorage` abstraction, six media contracts/actions, data objects, policies, `config/catalog.php`, the `MediaRelationManager`, image fixtures and media tests.
 - `git diff --check` is clean. Do not commit, merge or reset without authorization.
 
 **This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
@@ -366,7 +382,7 @@ Never report tests as passing unless the relevant command was executed and its r
 
 1. Restore Fortify two-factor challenge handling in the Identity login flow.
 2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Implement media, then the Pricing module. Attribute/option foundations are complete (Task 005); descriptive attribute values remain deferred.
+3. Commit the verified Task 006 product media implementation after authorization, then start the Pricing module. Attribute/option foundations are complete (Task 005); descriptive attribute values remain deferred.
 4. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
 5. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
 6. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.

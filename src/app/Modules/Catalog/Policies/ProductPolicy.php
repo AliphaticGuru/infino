@@ -53,4 +53,9 @@ final class ProductPolicy
     {
         return $user->is_admin;
     }
+
+    public function manageMedia(User $user, Product $product): bool
+    {
+        return $user->is_admin;
+    }
 }

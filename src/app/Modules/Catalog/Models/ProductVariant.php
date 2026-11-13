@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonInterface|null $updated_at
  * @property-read Product $product
  * @property-read Collection<int, ProductVariantAttributeOption> $attributeOptions
+ * @property-read Collection<int, ProductMedia> $media
+ * @property-read ProductMedia|null $primaryMedia
  */
 final class ProductVariant extends Model
 {
@@ -60,6 +62,49 @@ final class ProductVariant extends Model
     public function attributeOptions(): HasMany
     {
         return $this->hasMany(ProductVariantAttributeOption::class);
+    }
+
+    /**
+     * The variant-level gallery images, ordered by position.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class, 'product_variant_id')
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    /**
+     * The variant primary image, or null when the variant gallery has no
+     * primary.
+     */
+    public function primaryMedia(): ?ProductMedia
+    {
+        return $this->media()->where('is_primary', true)->first();
+    }
+
+    /**
+     * The variant primary image, then the product primary, then the product's
+     * first image, or null.
+     */
+    public function resolvedPrimaryMedia(): ?ProductMedia
+    {
+        return $this->primaryMedia()
+            ?? $this->product->primaryMedia();
+    }
+
+    /**
+     * The variant gallery when it has images, otherwise the product gallery.
+     *
+     * @return HasMany<ProductMedia, $this>|HasMany<ProductMedia, Product>
+     */
+    public function gallery(): HasMany
+    {
+        return $this->media()->exists()
+            ? $this->media()
+            : $this->product->media();
     }
 
     /**

@@ -2,6 +2,184 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-13 — Catalog product media and galleries (Task 006)
+
+### Objective
+Implement the approved product media architecture across schema, domain actions,
+authorization, Filament administration and verification without adding
+dependencies or bypassing the business layer.
+
+### Work performed
+- Added `src/config/catalog.php` (media disk, allowed disks, directory,
+  extension/MIME allowlists, size and dimension limits) and merged it in the
+  Catalog service provider.
+- Added `z11_create_product_media_table.php` with the composite
+  `(product_variant_id, product_id)` FK, gallery indexes and driver-guarded
+  PostgreSQL partial unique indexes for one primary per gallery.
+- Added `ProductMedia`, `ProductMediaFactory`, `Product::media()`,
+  `Product::allMedia()`, `Product::primaryMedia()`, `ProductVariant::media()`,
+  `ProductVariant::gallery()`, `ProductVariant::primaryMedia()` and
+  `ProductVariant::resolvedPrimaryMedia()`.
+- Added the `MediaStorage` contract, `FilesystemMediaStorage` and
+  `StoredMediaData`; bound the contract in the Catalog provider.
+- Added `FindsProductMedia`, `AddsProductMedia`, `UpdatesProductMedia`,
+  `SetsPrimaryProductMedia`, `DeletesProductMedia` and
+  `RepositionsProductMedia` contracts, actions and data objects.
+- Added `ProductMediaPolicy` and `ProductPolicy::manageMedia`, admin-only.
+- Implemented server-side validation (JPEG/PNG/WebP/GIF, 5 MB default,
+  8000 × 8000 cap, SVG rejection), alt-text normalization, variant ownership
+  checks, generated ULID paths and an allowed-disk list.
+- Added `MediaRelationManager` with product/per-variant tabs, contract-backed
+  upload, alt-text edit, set-primary, move-up/move-down and delete actions, and
+  a dynamic `ImageColumn` disk. Registered it on `ProductResource`.
+- Added real PNG/JPEG fixtures and `mediaUpload()` / `mediaFixture()` helpers;
+  tests do not use `UploadedFile::fake()->image()` because GD is absent.
+- Fixed a key-normalization bug in `RepositionProductMedia` and PHPStan return
+  types in the relation manager, variant gallery and filesystem storage.
+
+### Files changed
+Created (application):
+- `src/config/catalog.php`
+- `src/app/Modules/Catalog/Database/Migrations/z11_create_product_media_table.php`
+- `src/app/Modules/Catalog/Models/ProductMedia.php`
+- `src/app/Modules/Catalog/Database/Factories/ProductMediaFactory.php`
+- `src/app/Modules/Catalog/Support/FilesystemMediaStorage.php`
+- `src/app/Modules/Catalog/Policies/ProductMediaPolicy.php`
+- Six action files, six contract files, four data objects and
+  `MediaRelationManager.php`
+
+Modified (application):
+- `Product.php`, `ProductVariant.php`, `ProductPolicy.php`,
+  `CatalogServiceProvider.php`, `ProductResource.php`
+
+Created (tests):
+- `ProductMediaFoundationTest`, `ProductMediaUploadTest`,
+  `ProductMediaUpdateTest`, `ProductMediaPrimaryTest`,
+  `ProductMediaDeletionTest`, `ProductMediaRepositionTest`,
+  `ProductMediaResolutionTest`, `ProductMediaAuthorizationTest` and
+  `Filament/ProductMediaRelationManagerTest`
+- `tests/Fixtures/images/pixel.png`, `tests/Fixtures/images/pixel.jpg`
+
+Modified (tests):
+- `tests/Pest.php`
+
+Modified (docs):
+- `docs/agent/DECISIONS.md`, `PROJECT_STATE.md`, `WORK_LOG.md`, `HANDOFF.md`,
+  `ROADMAP.md`, `modules/CATALOG.md` and the Task 006 specification.
+
+No Composer dependency, GD/Imagick requirement or environment file was changed.
+
+### Tests and verification
+- Task 006 non-Filament media tests: 60 passed (149 assertions).
+- Task 006 Filament relation-manager tests: 12 passed (62 assertions).
+- Catalog focused suite: 337 passed (1073 assertions).
+- Inventory focused suite: 52 passed (174 assertions).
+- Full suite: 420 passed, 3 known pre-existing failures
+  (`AuthenticationTest`, `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Pint: 39 changed files pass.
+- PHPStan (`app/Modules/Catalog` + `config/catalog.php`): no errors.
+- PostgreSQL `migrate:fresh` succeeded; `z11` rolled back and re-applied cleanly.
+- Direct PostgreSQL inserts confirmed the product-gallery and variant-gallery
+  partial unique indexes and the composite cross-product FK are enforced.
+- `git diff --check`: clean.
+
+### Results
+Task 006 is implemented and verified in the working tree. DEC-022 is accepted.
+The work is **not committed**; commit only with authorization.
+
+### Outstanding issues
+- Media rows cascade-delete with products/variants but files can be orphaned;
+  a future `catalog:prune-media` command is required.
+- Thumbnails, conversions and EXIF stripping are deferred.
+- `php artisan storage:link` remains a local setup step.
+- The production S3-compatible provider and public URL strategy are deployment
+  follow-ups.
+- The three known pre-existing full-suite failures remain unrelated.
+
+### Next action
+Obtain authorization to commit Task 006, then begin the Pricing module.
+
+## 2026-11-12 — Task 005 commit verification and product media assessment (Task 006)
+
+### Objective
+Commit the verified Task 005 attribute/option foundation without discarding or
+amending work, then assess the Product Media architecture and produce an
+implementation specification before writing any media code.
+
+### Work performed
+- Inspected the branch and working tree before staging; stayed on
+  `feature/catalog` and did not reset, clean, amend or discard work.
+- Re-ran `git diff --check`, `git show --check`, the Catalog focused suite and
+  Pint before committing.
+- Committed the verified Task 005 files as
+  `74dcd79` — `feat(catalog): implemented catalog product attributes & options foundation`.
+- The requested commit subject was
+  `feat(catalog): add product attributes and options foundation`; the actual
+  subject differs because the verified commit used the existing repository
+  wording. No amend was performed because amending was explicitly prohibited.
+- Inspected the existing media landscape: no Spatie Media Library, no
+  Intervention Image, no GD or Imagick extension, `fileinfo` present,
+  `FILESYSTEM_DISK=local`, `public` and `s3` disks configured, and no
+  `public/storage` link.
+- Reviewed the existing media proposal in Task 002 and the current Product,
+  ProductVariant, policy, Filament relation-manager and migration patterns.
+- Confirmed Filament 5 supports `FileUpload::storeFiles(false)`,
+  `saveUploadedFileUsing()`, `imageEditor(false)` and dynamic `ImageColumn` disk
+  selection.
+- Confirmed `getimagesize()` is available without GD, while
+  `UploadedFile::fake()->image()` requires GD and must not be used in tests.
+- Recommended Catalog ownership of `ProductMedia` with a `MediaStorage`
+  abstraction; rejected a separate Media module for now, Spatie Media Library,
+  Intervention Image, database byte storage and external-URL-only media.
+- Wrote the Task 006 specification covering ownership, schema, gallery and
+  primary-image semantics, storage strategy, contracts/actions, Filament
+  administration, authorization, validation/security, transactional consistency,
+  test requirements, acceptance criteria, risks and open questions.
+- Recorded DEC-022 as **Proposed**, not implemented.
+- Updated the roadmap, project state, handoff, Catalog module specification and
+  this work log.
+
+### Files changed
+Created:
+- `docs/agent/tasks/active/006-catalog-product-media.md`
+
+Modified:
+- `docs/agent/ROADMAP.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/DECISIONS.md`
+- `docs/agent/modules/CATALOG.md`
+- `docs/agent/WORK_LOG.md`
+
+No application code, migration, dependency or environment file was changed.
+
+### Tests and verification
+- `git diff --check`: clean before commit.
+- `git show --check HEAD`: clean.
+- `docker compose run --rm --no-deps cli php artisan test --compact tests/Feature/Catalog`:
+  265 passed (862 assertions).
+- `docker compose run --rm --no-deps cli ./vendor/bin/pint --test app/Modules/Catalog tests/Feature/Catalog`:
+  PASS, 148 files.
+- Commit verified at `74dcd79`; working tree clean immediately after commit.
+- Task 006 is documentation-only; no media tests were written or run.
+
+### Results
+Task 005 is committed and the working tree was clean. The media architecture is
+specified but unimplemented. DEC-022 remains proposed.
+
+### Outstanding issues
+- The actual Task 005 commit subject differs from the requested subject; no
+  amend was made.
+- Product media has no code, migration, tests, config or storage link yet.
+- EXIF stripping, thumbnails/conversions and orphan-file pruning are deferred.
+- The known pre-existing full-suite failures remain unrelated:
+  `AuthenticationTest`, `TwoFactorChallengeTest` and `PostCreatePageTest`.
+
+### Next action
+Confirm the Task 006 open questions, then implement product media in the three
+specified steps: schema/storage foundation, domain actions, and Filament
+administration.
+
 ## 2026-11-12 — Catalog product attributes and options (Task 005)
 
 ### Objective
@@ -122,7 +300,8 @@ Modified:
 - `git diff --check`: clean.
 
 ### Outstanding issues
-- Task 005 is not committed; HEAD remains `cfe11b6`.
+- ~~Task 005 is not committed; HEAD remains `cfe11b6`.~~ Resolved: Task 005 was
+  committed at `74dcd79` on 2026-11-12.
 - Attribute support is limited to `select` variant dimensions. Descriptive
   attribute values, text/number/boolean types and product-level values are
   deferred.
@@ -131,7 +310,7 @@ Modified:
 - The three pre-existing full-suite failures remain unrelated to Catalog.
 
 ### Next action
-Get authorization to commit Task 005, then proceed to media or the Pricing
+Task 005 was committed at `74dcd79`; proceed to media or the Pricing
 module.
 
 ## 2026-11-11 — Catalog product variant administration (Task 004)

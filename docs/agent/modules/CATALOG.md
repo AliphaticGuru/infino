@@ -1,6 +1,6 @@
 # Catalog Module Specification
 
-**Status:** Product, category, variant and attribute/option foundations complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized attributes/options, variant-keyed Inventory and the Filament admin layer verified
+**Status:** Product, category, variant and attribute/option foundations complete; retrieval, update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized attributes/options, product media/galleries, variant-keyed Inventory and the Filament admin layer verified
 **Location:** `src/app/Modules/Catalog/`
 
 ## Responsibility
@@ -368,6 +368,100 @@ Verified on 2026-11-12:
 - Inventory focused suite: 52 passed (174 assertions).
 - PostgreSQL `migrate:fresh`, rollback of `z07`–`z10` and re-apply: verified.
 
+## Product media
+
+Product media is implemented in Task 006 and recorded as DEC-022. The
+implementation lives in `src/app/Modules/Catalog/` and is verified by the media
+foundation, upload, update, primary, deletion, reposition, resolution,
+authorization and Filament relation-manager tests.
+
+Ownership:
+- Catalog owns `ProductMedia` and product/variant galleries.
+- A Catalog-owned `MediaStorage` contract isolates filesystem access. It can
+  later move to Core or a separate Media module if another consumer appears.
+- Spatie Media Library, Intervention Image and server-side image processing are
+  not used because no image driver is installed and no dependency is approved.
+
+`product_media` table:
+- `id`
+- `product_id` FK to `products`, cascade
+- nullable `product_variant_id` FK to `product_variants`, cascade
+- `disk`, `path`, `original_name`, `mime_type`, `size`, `width`, `height`
+- nullable `alt_text`
+- gallery-scoped `position`
+- `is_primary`
+- timestamps
+- indexes `(product_id, position)`, `(product_variant_id, position)` and
+  `(product_id, is_primary)`
+- composite FK `(product_variant_id, product_id)` to
+  `product_variants (id, product_id)` so a variant image cannot belong to
+  another product
+- PostgreSQL-only partial unique indexes for one primary per product gallery and
+  one primary per variant gallery
+
+Gallery rules:
+- `product_variant_id = null` is product-level media; a variant ID is that
+  variant's gallery.
+- `position` is scoped to one gallery and normalized to `0..n-1`.
+- At most one primary per gallery; the first image becomes primary; setting a
+  new primary clears the old one; deleting the primary promotes the next image
+  by position then ID.
+- Variant gallery and primary resolution fall back to the product gallery when
+  the variant has no images.
+- Variant association is immutable after upload; moving an image requires delete
+  and re-upload.
+
+Contracts and actions:
+- `FindsProductMedia` / `FindProductMedia`
+- `AddsProductMedia` / `AddProductMedia` / `AddProductMediaData`
+- `UpdatesProductMedia` / `UpdateProductMedia` / `UpdateProductMediaData`
+- `SetsPrimaryProductMedia` / `SetPrimaryProductMedia`
+- `DeletesProductMedia` / `DeleteProductMedia`
+- `RepositionsProductMedia` / `RepositionProductMedia` /
+  `RepositionProductMediaData`
+- `MediaStorage` / `FilesystemMediaStorage` / `StoredMediaData`
+
+Storage:
+- Development: Laravel `public` disk plus `php artisan storage:link`; the
+  application-wide `FILESYSTEM_DISK` stays `local`.
+- Production: the existing `s3` disk through `CATALOG_MEDIA_DISK` and standard
+  `AWS_*` variables. The disk is stored per row.
+- Paths are generated as `catalog/products/{product_id}/{ulid}.{extension}`.
+- No thumbnails, conversions or EXIF stripping in the first release.
+
+Filament administration:
+- `MediaRelationManager` on the product edit page with product and per-variant
+  gallery tabs.
+- Upload uses `FileUpload::storeFiles(false)` and calls `AddsProductMedia`.
+- Alt-text edit, set-primary, delete and move-up/move-down actions call the
+  corresponding contracts; built-in drag reordering is not used.
+- `ImageColumn` reads the row's disk.
+- `ProductPolicy::manageMedia` and `ProductMediaPolicy` are admin-only.
+
+Validation and security:
+- JPEG, PNG, WebP and GIF only; SVG and executable formats are rejected.
+- 5 MB default size limit and 8000 × 8000 default dimension cap.
+- Server-side MIME/content validation is authoritative.
+- Generated filenames, sanitized original names and an allowed-disk list.
+- File/database consistency: upload deletes the file if the row write fails;
+  delete removes the row first and deletes the file after commit best-effort.
+- Cascade deletes can orphan files; a future `catalog:prune-media` command is
+  required. EXIF/GPS metadata is retained until an approved conversion step
+  exists.
+
+Verification on 2026-11-13:
+- Catalog focused suite: 337 passed (1073 assertions).
+- Task 006 media tests: 60 non-Filament tests (149 assertions) and 12 Filament
+  tests (62 assertions).
+- Inventory focused suite: 52 passed (174 assertions).
+- Full suite: 420 passed, 3 known pre-existing failures
+  (`AuthenticationTest`, `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Pint: 39 changed files pass.
+- PHPStan (Catalog + `config/catalog.php`): no errors.
+- PostgreSQL `migrate:fresh`, rollback of `z11` and re-apply verified; both
+  partial unique indexes and the composite FK enforced by direct inserts.
+- `git diff --check`: clean.
+
 ## Product retrieval and update
 
 Retrieval (`FindsProducts` / `FindProduct`):
@@ -633,7 +727,9 @@ Known limitations:
   values, text/number/boolean types and product-level values are deferred.
 - Publication does not yet require every variant of a dimensioned product to be
   configured.
-- Media and pricing are not implemented.
+- Media is implemented with gallery-scoped ordering, primary images, alt text,
+  validation and Filament administration; thumbnails, conversions, EXIF
+  stripping and orphan-file pruning are deferred. Pricing is not implemented.
 - Inventory is variant-keyed, but no Inventory administration or reporting UI
   exists.
 
@@ -645,7 +741,7 @@ These are not yet implemented or approved as final scope:
 - Attribute definitions and options are implemented for `select` variant
   dimensions; descriptive product values, other attribute types and product-level
   values remain future scope.
-- Product media.
+- Product media thumbnails, conversions, EXIF stripping and orphan-file pruning.
 - SEO metadata.
 - Product search metadata.
 
@@ -666,6 +762,7 @@ These are not yet implemented or approved as final scope:
 13. ~~Are products variant-based from the beginning?~~ Yes. Every product owns at least one variant, and the variant is the canonical purchasable unit (DEC-019).
 14. ~~Can variants be administered safely?~~ Verified: retrieval, creation, update, activation/deactivation, default and last-active protection, product-scoped repositioning and Filament relation-manager administration (DEC-020, 2026-11-11).
 15. ~~How are attributes, options and variant option selections modelled?~~ Verified: normalized global definitions, owned options, product assignments, variant selections, derived variant keys, guarded deletion and Filament administration (DEC-021, 2026-11-12).
+16. ~~How should product media and galleries be owned and stored?~~ Verified: Catalog-owned `ProductMedia`, `MediaStorage` abstraction, product/variant galleries with gallery-scoped ordering and primary images, public-disk development storage and S3-compatible direction, and Filament relation-manager administration (Task 006, DEC-022 implemented, 2026-11-13).
 
 ## Acceptance criteria for the initial Catalog foundation
 
