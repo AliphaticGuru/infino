@@ -1,7 +1,7 @@
 # Infino — Project State
 
 **Last inspected:** 2026-11-14
-**Current branch at inspection:** `feature/pricing`
+**Current branch at inspection:** `feature/cart`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -293,6 +293,53 @@ Test results (verified 2026-11-14 via Docker Compose):
 - Pint: Pricing module and Pricing tests still report 7 pre-existing style issues (Filament resources and Pricing tests). These predate this task and are not auto-fixed here.
 - PHPStan: `app/Modules/Pricing` still reports pre-existing errors (Filament 5 class moves, model PHPDoc generics, `Money::init()` array type). They are recorded as known debt.
 
+### Cart
+**Status:** Task 008.1 implemented and committed on `feature/cart`. Cart foundation verified with 24 focused Pest tests.
+
+Observed state: Cart module foundation implemented with Cart and CartItem models, database migrations, authenticated and guest cart ownership, add/remove/update operations, variant validation through the Catalog `FindsProductVariants` contract, quantity bounds, add-time price snapshots through `FindsVariantPrices`, expired-cart mutation guards, and Pest tests.
+
+Observed files include:
+- `src/app/Modules/Cart/module.json` - Module manifest with name, description, version, enabled, dependencies on Core/Catalog/Pricing, and CartServiceProvider
+- `src/app/Modules/Cart/Models/Cart.php` - Cart model with user_id/token scoping, `isExpired()`, `isGuest()`, `isAuthenticated()`, implements CartContract; validates variants through Catalog, snapshots prices, enforces `MAX_ITEM_QUANTITY` (999), and rejects mutations on expired carts
+- `src/app/Modules/Cart/Models/CartItem.php` - CartItem model with variant relation, price snapshots, `isValid()`, `getSubtotalMinor()`, `getSubtotalCurrency()`
+- `src/app/Modules/Cart/Contracts/CartContract.php` - Interface defining all cart operations (addVariant, updateQuantity, removeVariant, getQuantity, getItems, getTotalMinorAndCurrency, hasVariant, isExpired)
+- `src/app/Modules/Cart/Actions/AddCartItem.php` - Adapts `Cart::addVariant()` for use-case layers with `ValidationException` mapping
+- `src/app/Modules/Cart/Actions/RemoveCartItem.php` - Delegates to `Cart::removeVariant()`
+- `src/app/Modules/Cart/Actions/UpdateCartItemQuantity.php` - Delegates to `Cart::updateQuantity()` with quantity/expiry validation
+- `src/app/Modules/Cart/Database/Migrations/z14_create_carts_table.php` - carts table with user_id, token, status, expires_at
+- `src/app/Modules/Cart/Database/Migrations/z15_create_cart_items_table.php` - cart_items with variant FK, price snapshots, unique (cart_id, variant_id) constraint
+- `src/app/Modules/Cart/Providers/CartServiceProvider.php` - Extends `BaseModuleServiceProvider` to load module providers, routes, and migrations
+- `src/tests/Feature/Cart/CartFoundationTest.php` - 24 Pest tests covering cart foundation operations
+
+Module dependencies: Core, Catalog, Pricing. Cart owns carts, cart items, and cart operations. Order owns order creation, order items, order numbering, and order lifecycle. Cart must not directly create Order records.
+
+Database schema implemented:
+- `carts`: one cart per user (user_id) or per token; status; expires_at; foreign key to users with cascade on delete
+- `cart_items`: one line item per (cart_id, variant_id) with quantity, price_amount_minor, price_currency (NGN), compare_at_amount_minor snapshots; foreign keys to carts and product_variants
+
+Test results (verified 2026-11-14):
+- Cart focused suite: 24 passed (63 assertions)
+- Pricing suite: 43 passed (122 assertions) - no regressions
+- Catalog Filament suite: 81 passed (396 assertions)
+- Full suite: 487 passed, 3 failed (1513 assertions); all 3 are pre-existing and unrelated to Cart (two-factor redirect tests and `PostCreatePageTest`)
+- Verification command: `docker compose run --rm --no-deps cli ./vendor/bin/pest tests/Feature/Cart/`
+
+Implementation notes:
+- Feature tests use `User::factory()` for FK-valid users and `ProductVariant::factory()` plus `SetsVariantPrice` for priced variants, removing the earlier false FK failures.
+- `getTotalMinorAndCurrency()` iterates persisted cart items and returns 0/NGN for an empty cart.
+- Price snapshots are stable: changing a variant price after add-time does not alter existing cart lines.
+- Cart migrations were renamed to `z14`/`z15` so they run after Catalog on a fresh PostgreSQL database; timestamped names sorted before `product_variants` existed and broke `cart_items` foreign keys.
+- Known limitation: a variant with no current price is added with a `0` minor-unit snapshot. Order creation must reject unpriced variants, or a follow-up should make them unpurchasable.
+
+Specified in `docs/agent/tasks/active/008-cart-foundation.md` and `docs/agent/modules/CART.md`:
+- Cart module depending on Core, Catalog, and Pricing
+- Authenticated carts scoped to `user_id`; guest carts scoped to secure token
+- Prices snapshotted at add-time through `FindsVariantPrices` (read-only, no Pricing modifications)
+- Quantity validation (1..999); duplicate variants update quantity, don't create separate line items
+- Cart expiration via `expires_at` timestamp; expired carts reject mutations
+- Stock availability checks are not wired in Task 008.1 (no existing read-only Inventory contract); reservation is deferred to checkout
+- Order creation captures its own immutable price/currency snapshots; subsequent price changes don't alter orders
+
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
 
@@ -349,6 +396,7 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After Task 005 (normalized product attributes and options): **348 passed, 3 failed (1117 assertions)**.
 - After Task 006 (product media and galleries): **420 passed, 3 failed (1328 assertions)**.
 - After Task 007D (Pricing hardening, 2026-11-14): **487 passed, 3 failed (1513 assertions)**. The 3 failures are pre-existing and unrelated to Pricing: `AuthenticationTest`/`TwoFactorChallengeTest` (two-factor redirect) and `PostCreatePageTest`.
+- After Task 008.1 (Cart foundation, 2026-11-14): **487 passed, 3 failed (1513 assertions)**. The 3 failures are the same pre-existing ones and are unrelated to Cart.
 - Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004; **265 passed (862 assertions)** after Task 005; **337 passed (1073 assertions)** after Task 006.
 - Task 006 media tests: **72 passed (211 assertions)**.
 - Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004; **69 passed (334 assertions)** after Task 005.

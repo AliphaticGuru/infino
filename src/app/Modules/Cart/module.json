@@ -1,0 +1,14 @@
+{
+    "name": "Cart",
+    "description": "Shopping cart management for authenticated and guest customers.",
+    "version": "1.0.0",
+    "enabled": true,
+    "dependencies": [
+        "Core",
+        "Catalog",
+        "Pricing"
+    ],
+    "providers": [
+        "App\\Modules\\Cart\\Providers\\CartServiceProvider"
+    ]
+}

@@ -2,6 +2,67 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-14 — Cart foundation (Task 008.1)
+
+### Objective
+Implement the Cart module foundation on `feature/cart`: authenticated and guest
+carts, item add/update/remove, variant validation through Catalog, add-time
+price snapshots through Pricing, quantity bounds, expiration guards, and Pest
+coverage, without modifying Pricing internals or creating Order records.
+
+### Work performed
+- Created the Cart module (`module.json`, `CartServiceProvider`) depending on
+  Core, Catalog and Pricing.
+- Added `carts` and `cart_items` migrations with user/token scoping, price
+  snapshot columns, foreign keys and a unique `(cart_id, variant_id)` constraint.
+- Added `Cart` and `CartItem` models plus `CartContract`.
+- `Cart` validates variants through `FindsProductVariants`, reads prices through
+  `FindsVariantPrices`, snapshots price/currency/compare-at at add-time, enforces
+  quantity bounds (1..999), locks rows transactionally and rejects mutations on
+  expired carts.
+- Added `AddCartItem`, `RemoveCartItem` and `UpdateCartItemQuantity` actions that
+  delegate to the model and map failures to `ValidationException`.
+- Added 24 Pest tests covering discovery, schema, authenticated/guest creation,
+  token/user isolation, valid/inactive/missing variants, quantity bounds,
+  duplicate handling, removal, updates, totals, snapshot stability and expiry.
+
+### Files changed
+- `src/app/Modules/Cart/**` (new module)
+- `src/tests/Feature/Cart/CartFoundationTest.php` (new)
+- `docs/agent/tasks/active/008-cart-foundation.md`
+- `docs/agent/modules/CART.md`
+- `docs/agent/PROJECT_STATE.md`
+- `docs/agent/ROADMAP.md`
+- `docs/agent/HANDOFF.md`
+- `docs/agent/DECISIONS.md` (DEC-024)
+- `docs/agent/WORK_LOG.md`
+
+### Tests and verification
+- `docker compose run --rm --no-deps cli ./vendor/bin/pest tests/Feature/Cart/`
+  → **24 passed (63 assertions)**.
+- Pricing suite → **43 passed (122 assertions)**; no regressions.
+- Full suite → **487 passed, 3 failed (1513 assertions)**. All 3 failures are
+  pre-existing and unrelated to Cart (two-factor redirects and
+  `PostCreatePageTest`).
+- Migrations applied successfully on PostgreSQL.
+
+### Results
+Cart foundation is implemented and verified. Earlier false failures caused by a
+literal `user_id = 1` were fixed by creating real users with `User::factory()`
+and pricing variants through `SetsVariantPrice`.
+
+### Outstanding issues
+- Cart migrations were renamed from timestamped names to `z14`/`z15` after a
+  fresh PostgreSQL migration failed: the timestamped migrations sorted before
+  Catalog, so `cart_items` referenced a not-yet-created `product_variants`
+  table.
+- No cart HTTP/Filament layer or cart-to-order workflow yet (deferred to
+  008.2/008.3).
+
+### Next action
+Open the Cart pull request into `develop`, then start Task 008.2 (Order
+Foundation).
+
 ## 2026-11-14 — Pricing hardening (Task 007D)
 
 ### Objective

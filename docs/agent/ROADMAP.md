@@ -74,14 +74,14 @@ Completion criteria:
 - Module-specific tests run reliably.
 
 ## Stage 4 — Commerce foundations
-**Status:** In progress — Inventory stock foundation complete; Pricing 007D complete
+**Status:** In progress — Cart foundation implemented; Inventory stock foundation complete
 
 Candidate areas:
 - ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
-- Pricing — Tasks 007A–007D implemented (PostgreSQL CHECK constraint on variant_prices for compare-at validation, migration rollback verified, Money parse/format corrections, documentation finalized); DEC-023 Accepted; next: Cart foundation.
-- Cart and wishlist.
+- Pricing — Tasks 007A–007D implemented (PostgreSQL CHECK constraint on variant_prices for compare-at validation, migration rollback verified, Money parse/format corrections, documentation finalized); DEC-023 Accepted; next: Stage 4.2 order foundation and checkout.
+- ✅ Cart and wishlist — Task 008.1 implemented and verified: Cart module foundation with authenticated and guest carts, item management, variant validation through Catalog, quantity bounds, add-time price snapshots through Pricing, expired-cart guards, and 24 passing Pest tests. Committed on `feature/cart`.
 - Checkout.
-- Orders.
+- Orders — Task 008.2 planned: Order foundation, order items, order numbering (ORD-YYYYMMDD-XXXX), status lifecycle.
 
 Define data ownership and lifecycle rules before implementing cross-module workflows.
 

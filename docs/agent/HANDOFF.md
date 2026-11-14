@@ -68,3 +68,44 @@
 - `docs/agent/HANDOFF.md` — This update.
 
 **Next recommended action:** Proceed to Task 008.1 (Cart foundation) on `feature/cart`.
+
+**Completed (Task 008.1):**
+- `src/app/Modules/Cart/module.json` — Module manifest with name, description, version, enabled, dependencies on Core/Catalog/Pricing, and CartServiceProvider
+- `src/app/Modules/Cart/Models/Cart.php` — Cart model with user_id/token scoping, `isExpired()`, `isGuest()`, `isAuthenticated()`, implements CartContract; validates variants through the Catalog `FindsProductVariants` contract, snapshots prices through `FindsVariantPrices`, enforces `MAX_ITEM_QUANTITY` (999), and rejects mutations on expired carts
+- `src/app/Modules/Cart/Models/CartItem.php` — CartItem model with variant relation, price snapshots, `isValid()`, `getSubtotalMinor()`, `getSubtotalCurrency()`
+- `src/app/Modules/Cart/Contracts/CartContract.php` — Interface defining all cart operations (addVariant, updateQuantity, removeVariant, getQuantity, getItems, getTotalMinorAndCurrency, hasVariant, isExpired)
+- `src/app/Modules/Cart/Actions/AddCartItem.php` — Adapts `Cart::addVariant()` for use-case layers, mapping validation failures to `ValidationException`
+- `src/app/Modules/Cart/Actions/RemoveCartItem.php` — Delegates to `Cart::removeVariant()`
+- `src/app/Modules/Cart/Actions/UpdateCartItemQuantity.php` — Delegates to `Cart::updateQuantity()` with quantity/expiry validation
+- `src/app/Modules/Cart/Database/Migrations/z14_create_carts_table.php` — carts table with user_id, token, status, expires_at
+- `src/app/Modules/Cart/Database/Migrations/z15_create_cart_items_table.php` — cart_items with variant FK, price snapshots, unique (cart_id, variant_id) constraint
+- `src/app/Modules/Cart/Providers/CartServiceProvider.php` — Extends `BaseModuleServiceProvider` to load module providers, routes, and migrations
+- `src/tests/Feature/Cart/CartFoundationTest.php` — 24 Pest tests covering cart foundation operations
+
+**Module dependencies:** Core, Catalog, Pricing. Cart owns carts, cart items, and cart operations. Order owns order creation, order items, order numbering, and order lifecycle. Cart must not directly create Order records.
+
+**Database schema implemented:**
+- `carts`: one cart per user (user_id) or per token; status; expires_at; foreign key to users with cascade on delete
+- `cart_items`: one line item per (cart_id, variant_id) with quantity, price_amount_minor, price_currency (NGN), compare_at_amount_minor snapshots; foreign keys to carts and product_variants
+
+**Test results (verified 2026-11-14):**
+- Cart focused suite: **24 passed (63 assertions)**
+- Pricing suite: **43 passed (122 assertions)** — no regressions
+- Full suite: **487 passed, 3 failed (1513 assertions)**; all 3 failures are pre-existing and unrelated to Cart
+- Earlier false Cart failures were caused by inserting `user_id = 1` without a matching user row; tests now create real users via `User::factory()` and price variants through `SetsVariantPrice`
+
+**Architecture decisions:**
+- Authenticated carts scoped to `user_id`; guest carts scoped to secure token
+- Prices snapshotted at add-time through `FindsVariantPrices` (read-only, no Pricing modifications)
+- Quantity validation (1..999); duplicate variants update quantity, don't create separate line items
+- Cart expiration via `expires_at` timestamp; expired carts reject mutations
+- Stock checks are not wired in Task 008.1 (no existing read-only availability contract); stock reservation is deferred to checkout
+- Order creation captures its own immutable price/currency snapshots; subsequent price changes don't alter orders
+
+**Outstanding:**
+- Task 008.1 is committed on `feature/cart` as a follow-up to the Pricing 007D prerequisite commit.
+- No Cart HTTP/Filament layer or cart-to-order workflow yet (deferred to 008.2/008.3).
+- A variant with no current price is currently added with a `0` minor-unit snapshot; order creation must reject unpriced variants.
+
+**Next task:** Task 008.2 — Order Foundation (order creation, order items, order status lifecycle)
+**Next recommended action:** Open the Cart pull request into `develop`, then start Task 008.2 (Order Foundation).

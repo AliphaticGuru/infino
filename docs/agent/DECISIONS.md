@@ -743,6 +743,61 @@ Consequences and migration implications:
 - Once Orders exist, order lines must snapshot amount and currency rather than
   joining live price rows.
 
+### DEC-024 — Cart foundation architecture
+**Status:** Accepted
+**Date:** 2026-11-14
+**Branch:** `feature/cart`
+Context:
+Task 008.1 implements the Cart module foundation for Infino e-commerce platform,
+supporting both authenticated (user_id-scoped) and guest (token-scoped) carts.
+The cart owns cart records, cart items, and cart operations. Order ownership of
+order creation and lifecycle is separate; Cart must not directly create Order records.
+
+Decision (Accepted):
+- Cart module depends on Core, Catalog, and Pricing only. Catalog and Inventory
+  must remain price-free; Pricing provides read-only price lookups via
+  FindsVariantPrices contract. Variant validation goes through the Catalog
+  FindsProductVariants contract rather than direct model queries.
+- Authenticated carts are scoped to `user_id`; guest carts are scoped to a
+  secure, unique token. Both models support browsing and checkout for either
+  customer type.
+- Prices are snapshotted at add-time through the FindsVariantPrices contract;
+  no modification to Pricing internals. Order creation captures its own
+  immutable price and currency snapshots; subsequent price changes do not alter
+  order items.
+- Cart must not query Inventory tables directly. No existing Inventory contract
+  exposes a read-only availability query, so availability checks are not wired
+  in Task 008.1; stock reservation is deferred to checkout start.
+- Quantity validation: minimum 1 and maximum `Cart::MAX_ITEM_QUANTITY` (999);
+  duplicate variants in the same cart update quantity rather than creating
+  separate line items (unique constraint on `cart_id, variant_id`).
+- Cart expiration is checked via `expires_at` timestamp; `isExpired()` returns
+  true when the timestamp is in the past, and expired carts reject add, update
+  and remove mutations while remaining readable.
+- Compare-at prices are snapshotted as-is at add-time; order items preserve
+  the compare-at price captured at order creation.
+- Default currency is NGN, using the existing Pricing configuration.
+- Order numbering format `ORD-YYYYMMDD-XXXX` is enforced by database uniqueness
+  constraint when Order is implemented.
+- No floating-point money; all amounts stored as integer minor units.
+
+Options considered (rejected):
+- Cart depending on Inventory for stock writes: rejected; Inventory owns stock
+  and movement history, not basket state.
+- Price recalculation at checkout: rejected; snapshotted prices ensure order
+  immutability and historical accuracy.
+- Stock reservation at add-to-cart: rejected; deferred to checkout phase per
+  DEC-023 and modular-monolith boundaries.
+- UUID order numbers: rejected; human-readable `ORD-YYYYMMDD-XXXX` format
+  chosen for readability and uniqueness enforcement.
+- Floating-point decimal storage: rejected; consistent with DEC-023 money
+  storage decisions (integer minor units throughout).
+
+Related decisions:
+- DEC-019: Variant-first product architecture (variant is the priceable unit)
+- DEC-023: Pricing is a separate module (Cart must not mutate Pricing internals)
+- DEC-022: Catalog and Inventory remain price-free
+
 ## Decision protocol
 
 For each new decision, record:
