@@ -7,9 +7,12 @@ namespace App\Modules\Catalog\Models;
 use App\Modules\Catalog\Database\Factories\ProductFactory;
 use App\Modules\Catalog\Support\ProductStatus;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property int $id
@@ -20,6 +23,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property ProductStatus $status
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
+ * @property-read Collection<int, ProductVariant> $variants
+ * @property-read ProductVariant|null $defaultVariant
+ * @property-read Collection<int, ProductAttribute> $productAttributes
+ * @property-read Collection<int, ProductMedia> $media
+ * @property-read ProductMedia|null $primaryMedia
  */
 final class Product extends Model
 {
@@ -47,5 +55,66 @@ final class Product extends Model
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class);
+    }
+
+    /**
+     * @return HasMany<ProductVariant, $this>
+     */
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class);
+    }
+
+    /**
+     * @return HasOne<ProductVariant, $this>
+     */
+    public function defaultVariant(): HasOne
+    {
+        return $this->hasOne(ProductVariant::class)->oldestOfMany();
+    }
+
+    /**
+     * The attributes assigned to this product.
+     *
+     * Deliberately not named attributes() because Eloquent already exposes the
+     * $attributes property on every model.
+     *
+     * @return BelongsToMany<ProductAttribute, $this>
+     */
+    public function productAttributes(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductAttribute::class, 'product_attribute_product');
+    }
+
+    /**
+     * All media rows owned by the product, across both galleries.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function allMedia(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class, 'product_id')
+            ->orderBy('position')
+            ->orderBy('id');
+    }
+
+    /**
+     * The product-level gallery images (variant_id is null), ordered by position.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->allMedia()->whereNull('product_variant_id');
+    }
+
+    /**
+     * The product primary image, or the first product image by position as a
+     * fallback.
+     */
+    public function primaryMedia(): ?ProductMedia
+    {
+        return $this->media()->where('is_primary', true)->first()
+            ?? $this->media()->first();
     }
 }

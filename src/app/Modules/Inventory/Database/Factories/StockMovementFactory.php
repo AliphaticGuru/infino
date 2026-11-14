@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Database\Factories;
 
-use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Inventory\Models\StockMovement;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,7 +20,7 @@ final class StockMovementFactory extends Factory
         $quantityDelta = fake()->numberBetween(1, 50) * fake()->randomElement([-1, 1]);
 
         return [
-            'product_id' => Product::factory(),
+            'variant_id' => ProductVariant::factory(),
             'location' => 'default',
             'quantity_delta' => $quantityDelta,
             'resulting_quantity' => max(0, $quantityDelta),
@@ -33,6 +33,13 @@ final class StockMovementFactory extends Factory
     {
         return $this->state([
             'location' => $location,
+        ]);
+    }
+
+    public function forVariant(ProductVariant $variant): static
+    {
+        return $this->state([
+            'variant_id' => $variant->id,
         ]);
     }
 }

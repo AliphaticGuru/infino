@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Database\Factories;
 
-use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Inventory\Models\Inventory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,7 +18,7 @@ final class InventoryFactory extends Factory
     public function definition(): array
     {
         return [
-            'product_id' => Product::factory(),
+            'variant_id' => ProductVariant::factory(),
             'location' => 'default',
             'quantity' => fake()->numberBetween(0, 100),
         ];
@@ -28,6 +28,13 @@ final class InventoryFactory extends Factory
     {
         return $this->state([
             'location' => $location,
+        ]);
+    }
+
+    public function forVariant(ProductVariant $variant): static
+    {
+        return $this->state([
+            'variant_id' => $variant->id,
         ]);
     }
 }

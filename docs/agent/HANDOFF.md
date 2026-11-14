@@ -1,159 +1,111 @@
-# Infino — Current Agent Handoff
+### Pricing Module — Task 007A Implementation Status
 
-**Last updated:** 2026-11-10
-**Branch at last inspection:** `develop` (merge of `feature/catalog` in progress)
-**Pre-merge commit at last inspection:** `96f77dd` — `dev: merge conflict resolution 1`
+**Completed (Task 007A):**
+- `src/app/Modules/Pricing/module.json` — Module manifest with name, description, version, enabled flag, providers, and dependencies on Core and Catalog.
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Service provider registering `FindsVariantPrices`, `SetsVariantPrice`, `RemovesVariantPrice` contracts; `VariantPricePolicy`; and pricing config merging.
+- `src/config/pricing.php` — Configuration with `default_currency: NGN`, `allowed_currencies: [NGN, USD, EUR, GBP]`, and `exponents` map (2 decimal places each). Extensible via config changes; no code changes required to add new currencies.
+- `src/app/Modules/Pricing/Models/VariantPrice.php` — Eloquent model with `belongsTo(ProductVariant)`, `hasMany(VariantPriceChange)` relationships; `casts()` for `variant_id`, `currency`, `amount_minor`, `compare_at_amount_minor`; `newFactory()` returning `VariantPriceFactory`; `init()`-ready for Money exponent map.
+- `src/app/Modules/Pricing/Models/VariantPriceChange.php` — Append-only ledger model with `belongsTo(ProductVariant)`, `belongsTo(User)` via nullable `changed_by`; `casts()` for all fields; no `updated_at`; `newFactory()` returning `VariantPriceChangeFactory`.
+- `src/app/Modules/Pricing/Support/Money.php` — Integer-safe monetary value object with `parse()`, `format()`, `compare()`, `add()`, `subtract()` using currency-specific exponents from config. Rejects: unknown currencies, negative amounts, precision beyond exponent, invalid numeric input. Allows zero-value prices.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceFactory.php` — Factory with states: `ngn()`, `usd()`, `eur()`, `gbp()`, `withAmount()`, `withCompareAt()`, `forVariant()`.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceChangeFactory.php` — Factory with states: `created()`, `updated()`, `removed()`, `withChangedBy()`.
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php` — Creates `variant_prices` table: `id`, `variant_id`, `currency` (char(3)), `amount_minor` (unsigned bigint), `compare_at_amount_minor` (nullable unsigned bigint), timestamps. Foreign key to `product_variants` with cascade on delete. Unique constraint on `(variant_id, currency)`.
+- `src/app/Modules/Pricing/Database/Migrations/z13_create_variant_price_changes_table.php` — Creates `variant_price_changes` table: `id`, `variant_id`, `currency`, `change_type` (string 20), `old_amount_minor`, `new_amount_minor`, `old_compare_at_amount_minor`, `new_compare_at_amount_minor`, `changed_by` (nullable bigint), `created_at` (useCurrent). No `updated_at`. Foreign key to `product_variants` cascade, to `users` set null. Indexes on `(variant_id, created_at)` and `(currency, created_at)`.
+- `src/app/Modules/Pricing/Policies/VariantPricePolicy.php` — Admin-only policy: `viewAny`, `view`, `create`, `update`, `delete` all return `$user->is_admin`; `deleteAny` same.
+- `src/tests/Feature/Pricing/PricingFoundationTest.php` — Focused Pest tests covering: Money parse/format for NGN/USD, unknown currency rejection, negative amount rejection, precision beyond exponent rejection, valid USD/NGN parsing, format zero/non-zero, compare, model relationships (variant price belongs to variant, has many changes), change types (created/updated/removed), unique variant/currency constraint, foreign-key behavior, ledger immutability (no updated_at), policy authorization.
 
-## Objective
+**Infrastructure verified:**
+- Migrations `z12` and `z13` run successfully via `docker compose run --rm --no-deps cli php artisan migrate --force`.
+- All existing module suites remain green (Catalog 337 passed, Inventory 52 passed, full suite 420 passed with 3 pre-existing failures).
+- Pint passes on touched files.
+- Module loading: Pricing discovered through `ModuleRepository::all()` and its provider registered by `ModuleManager::load()`.
 
-Finish and verify the merge of `feature/catalog` into `develop`, then continue
-Catalog MVP work. The next concrete task is product-category assignment actions,
-or exposing the product lifecycle through an authorised delivery layer when a UI
-milestone begins. Keep Identity, Cart, Checkout, Orders and Payments untouched.
+**Completed (Task 007B):**
+- `src/app/Modules/Pricing/Contracts/FindsVariantPrices.php` — Contract for reading variant prices with `find()`, `forVariant()`, and `forCurrency()` methods.
+- `src/app/Modules/Pricing/Contracts/SetsVariantPrice.php` — Contract for creating/updating a variant's price with `handle()` method validating currency, amounts, and compare-at strict greater-than.
+- `src/app/Modules/Pricing/Contracts/RemovesVariantPrice.php` — Contract for removing a variant's current price with `handle()` method recording history before deletion.
+- `src/app/Modules/Pricing/Actions/FindVariantPrices.php` — Action retrieving current prices without modifying state.
+- `src/app/Modules/Pricing/Actions/SetVariantPrice.php` — Action creating or updating a variant's price with currency validation, amount validation, compare-at strict greater-than enforcement, variant row locking, upsert with unique (variant_id, currency) constraint, and history event recording in the same transaction.
+- `src/app/Modules/Pricing/Actions/RemoveVariantPrice.php` — Action removing a variant's current price with variant/price row locking, history event recording before deletion, and preservation of historical records.
+- `src/app/Modules/Pricing/Data/SetVariantPriceData.php` — Data object for setting a variant price.
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Updated with all three contract-to-action bindings registered.
+- `src/tests/Feature/Pricing/PricingActionsTest.php` — 16 Pest tests covering contract resolution, price creation, multi-currency storage, retrieval, currency rejection, negative/zero amount rejection, compare-at strict-greater-than validation, history recording on create/update/remove, history preservation after removal, variant price isolation, and model relationships.
 
-## Read first
+**Completed (Task 007C):**
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Resource with form, table, pages (create/edit/list), infolist, and policy registration.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Tables/VariantPricesTable.php` — Table with currency filter, amount formatting via Money, compare-at column, history icon, and admin-only action buttons (edit/delete gated by policy).
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/ListVariantPrices.php` — List page with header create action and currency-filterable table.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/CreateVariantPrice.php` — Create page with VariantPriceForm schema.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/EditVariantPrice.php` — Edit page with VariantPriceForm schema.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Schemas/VariantPriceForm.php` — Form schema with variant select, currency select, amount_minor, compare_at_amount_minor, and changed_by fields.
+- `src/app/Providers/Filament/AdminPanelProvider.php` — Added `->discoverResources(in: app_path('Modules/Pricing/Filament/Resources'), for: 'App\Modules\Pricing\Filament\Resources')`.
 
-1. `AGENTS.md`
-2. `docs/agent/README.md`
-3. `docs/agent/PRODUCT_BLUEPRINT.md`
-4. `docs/agent/PROJECT_STATE.md`
-5. `docs/agent/ROADMAP.md`
-6. `docs/agent/DECISIONS.md`
-7. `docs/agent/modules/CATALOG.md`
-8. This handoff.
-9. `src/AGENTS.md` before Laravel application changes.
+**Completed (Task 007D):**
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php` — Added the PostgreSQL CHECK constraint `variant_prices_compare_at_gte_amount` (`compare_at_amount_minor IS NULL OR compare_at_amount_minor >= amount_minor`). SQLite falls back to the application-level validation in `SetVariantPrice`.
+- `src/app/Modules/Pricing/Support/Money.php` — Corrected `parse()` to scale whole-unit input to minor units, accept `0`, `0.00` and `.56`, and reject malformed input; `format()` now handles exponent 0 and preserves signs.
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Fixed the policy import from the non-existent `App\Modules\Policies\VariantPricePolicy` to `App\Modules\Pricing\Policies\VariantPricePolicy`.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Replaced the non-existent `heroicon-o-coin` navigation icon with `heroicon-o-banknotes`.
+- `src/tests/Feature/Pricing/MoneyTest.php` — 9 Pest tests covering parse/format, exponents, zero handling, malformed input, unknown currencies and arithmetic.
+- `src/config/pricing.php` — Committed the pricing configuration that `PricingServiceProvider` already merges at boot (previously untracked, which made a clean checkout fail to boot).
+- DEC-023 status updated from Proposed to Accepted.
 
-## Important repository protection
+**Verification (2026-11-14):**
+- Pricing focused suite: **43 passed (122 assertions)**.
+- Catalog Filament suite: **81 passed (396 assertions)**.
+- Full suite: **487 passed, 3 failed (1513 assertions)**; the 3 failures are pre-existing (`AuthenticationTest`, `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Fresh PostgreSQL migration verified on a throwaway database; the `variant_prices_compare_at_gte_amount` constraint is present and survives rollback/re-migrate.
 
-A merge of `feature/catalog` into `develop` was in progress when this handoff
-was written. The conflict markers have been resolved, but the merge has not been
-committed.
+**Outstanding:**
+- `tests/Feature/Pricing/PricingFoundationTest.php` is mislabeled: it contains 18 Inventory tests. The Pricing foundation coverage it was meant to provide is still missing. This is a pre-existing defect, not fixed here.
+- Pint reports 7 pre-existing style issues in the Pricing Filament resources and Pricing tests.
+- PHPStan reports pre-existing errors in `app/Modules/Pricing` (Filament 5 class moves, model PHPDoc generics, `Money::init()` array type).
 
-Do not:
-- Run `git reset`, `git clean`, `git merge --abort` or destructive checkout commands.
-- Stash or discard user changes.
-- Rewrite existing application files without inspecting their diffs.
-- Commit or merge without authorization.
+**Documentation updated:**
+- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Tasks 007A–007D details, verified test results and known debt.
+- `docs/agent/ROADMAP.md` — Task 007D implemented; DEC-023 Accepted; next step is the Cart/order foundation.
+- `docs/agent/tasks/active/007-pricing-module.md` — Status updated to 007A–007D implemented; DEC-023 Accepted.
+- `docs/agent/DECISIONS.md` — DEC-023 Accepted with evidence supporting acceptance.
+- `docs/agent/HANDOFF.md` — This update.
 
-Run `git status --short` again before doing anything. The recorded state is historical.
+**Next recommended action:** Proceed to Task 008.1 (Cart foundation) on `feature/cart`.
 
-## Current verified context
+**Completed (Task 008.1):**
+- `src/app/Modules/Cart/module.json` — Module manifest with name, description, version, enabled, dependencies on Core/Catalog/Pricing, and CartServiceProvider
+- `src/app/Modules/Cart/Models/Cart.php` — Cart model with user_id/token scoping, `isExpired()`, `isGuest()`, `isAuthenticated()`, implements CartContract; validates variants through the Catalog `FindsProductVariants` contract, snapshots prices through `FindsVariantPrices`, enforces `MAX_ITEM_QUANTITY` (999), and rejects mutations on expired carts
+- `src/app/Modules/Cart/Models/CartItem.php` — CartItem model with variant relation, price snapshots, `isValid()`, `getSubtotalMinor()`, `getSubtotalCurrency()`
+- `src/app/Modules/Cart/Contracts/CartContract.php` — Interface defining all cart operations (addVariant, updateQuantity, removeVariant, getQuantity, getItems, getTotalMinorAndCurrency, hasVariant, isExpired)
+- `src/app/Modules/Cart/Actions/AddCartItem.php` — Adapts `Cart::addVariant()` for use-case layers, mapping validation failures to `ValidationException`
+- `src/app/Modules/Cart/Actions/RemoveCartItem.php` — Delegates to `Cart::removeVariant()`
+- `src/app/Modules/Cart/Actions/UpdateCartItemQuantity.php` — Delegates to `Cart::updateQuantity()` with quantity/expiry validation
+- `src/app/Modules/Cart/Database/Migrations/z14_create_carts_table.php` — carts table with user_id, token, status, expires_at
+- `src/app/Modules/Cart/Database/Migrations/z15_create_cart_items_table.php` — cart_items with variant FK, price snapshots, unique (cart_id, variant_id) constraint
+- `src/app/Modules/Cart/Providers/CartServiceProvider.php` — Extends `BaseModuleServiceProvider` to load module providers, routes, and migrations
+- `src/tests/Feature/Cart/CartFoundationTest.php` — 24 Pest tests covering cart foundation operations
 
-- Docker Desktop must be running.
-- PHP CLI in the application container: 8.5.7.
-- Laravel: 13.22.0.
-- Application command pattern: `docker compose run --rm --no-deps cli <command>`.
-- Compose configuration loads without warnings; `infino-db` is healthy.
-- Modules present: Core, Identity, Catalog, Inventory and TestModule.
-- Catalog foundation, product retrieval/update and publication lifecycle: verified.
-- Inventory foundation, movement history and read/reporting: verified.
-- Catalog focused suite: **62 passed (172 assertions)**.
-- Inventory focused suite: **44 passed (147 assertions)**.
-- Combined Catalog + Inventory: **106 passed (319 assertions)**.
-- Full suite after the merge: **137 passed, 3 failed (400 assertions)**.
-- Pint on Catalog/Inventory source and tests: passed.
-- PHPStan on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
-- Catalog migrations: `create_products_table` (batch 2); `create_categories_table`
-  and `create_z_category_product_table` (batch 3); `z_add_status_to_products_table`
-  applied 2026-11-10.
+**Module dependencies:** Core, Catalog, Pricing. Cart owns carts, cart items, and cart operations. Order owns order creation, order items, order numbering, and order lifecycle. Cart must not directly create Order records.
 
-## Known failures unrelated to Catalog and Inventory
+**Database schema implemented:**
+- `carts`: one cart per user (user_id) or per token; status; expires_at; foreign key to users with cascade on delete
+- `cart_items`: one line item per (cart_id, variant_id) with quantity, price_amount_minor, price_currency (NGN), compare_at_amount_minor snapshots; foreign keys to carts and product_variants
 
-1. `Tests\Feature\Auth\AuthenticationTest` — a two-factor user is redirected to `/dashboard` instead of `/two-factor-challenge`.
-2. `Tests\Feature\Auth\TwoFactorChallengeTest` — same two-factor challenge redirect failure.
-3. `Tests\Feature\PostCreatePageTest` — 500 because `layouts/app/sidebar.blade.php` reads `name` from a null authenticated user.
+**Test results (verified 2026-11-14):**
+- Cart focused suite: **24 passed (63 assertions)**
+- Pricing suite: **43 passed (122 assertions)** — no regressions
+- Full suite: **487 passed, 3 failed (1513 assertions)**; all 3 failures are pre-existing and unrelated to Cart
+- Earlier false Cart failures were caused by inserting `user_id = 1` without a matching user row; tests now create real users via `User::factory()` and price variants through `SetsVariantPrice`
 
-Do not modify them as part of Catalog or Inventory work unless explicitly authorized.
+**Architecture decisions:**
+- Authenticated carts scoped to `user_id`; guest carts scoped to secure token
+- Prices snapshotted at add-time through `FindsVariantPrices` (read-only, no Pricing modifications)
+- Quantity validation (1..999); duplicate variants update quantity, don't create separate line items
+- Cart expiration via `expires_at` timestamp; expired carts reject mutations
+- Stock checks are not wired in Task 008.1 (no existing read-only availability contract); stock reservation is deferred to checkout
+- Order creation captures its own immutable price/currency snapshots; subsequent price changes don't alter orders
 
-## Implemented Catalog capabilities
+**Outstanding:**
+- Task 008.1 is committed on `feature/cart` as a follow-up to the Pricing 007D prerequisite commit.
+- No Cart HTTP/Filament layer or cart-to-order workflow yet (deferred to 008.2/008.3).
+- A variant with no current price is currently added with a `0` minor-unit snapshot; order creation must reject unpriced variants.
 
-- `Product` and `Category` models, factories, migrations and relationships.
-- `CreateProduct`, `FindProduct`, `UpdateProduct` and `TransitionProductStatus` actions and contracts.
-- `CreateCategory` and `UpdateCategory` actions and contracts.
-- Collision-safe product and category slugs through `Support\UniqueSlug`,
-  including rename handling.
-- Self-referencing category hierarchy with `nullOnDelete`.
-- Many-to-many product-category relationship through `category_product`.
-- Product publication lifecycle:
-  - `Support\ProductStatus` backed enum (`draft`, `published`, `archived`).
-  - `TransitionsProductStatus` contract and `TransitionProductStatus` action.
-  - Operations: `publish`, `unpublish`, `archive`, `restore`.
-  - Transition matrix: draft→published/archived, published→draft/archived,
-    archived→draft only.
-  - Invalid transitions raise `ValidationException`; missing products raise
-    `ModelNotFoundException`.
-  - Transitions run in a transaction and preserve unrelated attributes.
-  - `is_active` remains an independent operational-availability flag.
-  - Decision recorded as DEC-017 in `docs/agent/DECISIONS.md`.
-
-## Implemented Inventory capabilities
-
-- `Inventory` and `StockMovement` models, factories and migrations.
-- Stock record per product and location, unique on `(product_id, location)`.
-- `CreateInventory` and `AdjustStock` actions with contracts and data objects.
-- Atomic adjustments in a transaction with `lockForUpdate`, rejecting negative results.
-- Append-only `stock_movements` written in the same transaction as the stock update.
-- `StockMovementReadService` for pagination, product/reason/date filtering,
-  per-product history and daily increase/decrease summaries (read-only).
-
-## Immediate task sequence
-
-### Option A — Product-category assignment actions
-
-- Add attach/detach/sync application-layer operations with contracts and data
-  objects where needed.
-- Validate product and category existence within Catalog.
-- Add focused tests; do not introduce UI or API endpoints.
-
-### Option B — Authorised lifecycle delivery
-
-- Expose product status transitions through a future Filament resource or API
-  resource, reusing `TransitionsProductStatus`.
-- Add authorization and request-validation tests at that layer.
-
-### Option C — Expose Inventory movement history
-
-- Add an authorised read layer (API resource or Filament page) over
-  `StockMovementReadService`.
-- Reuse the existing service filters and pagination; do not duplicate queries.
-- Add tests for filtering, pagination and access control.
-- Keep adjustment and movement-write behaviour unchanged.
-
-### Option D — Category retrieval and deletion
-
-- Add the smallest useful read/delete operations and contracts.
-- Decide whether deletion is restricted while products are assigned.
-
-### Later Inventory refinements
-
-- Add location entity and management.
-- Implement stock reservations and release logic.
-- Add per-location and per-reason reporting breakdowns.
-
-### Verification and shared memory
-
-- Run focused tests, the full suite and `vendor/bin/pint --format agent` on changed files.
-- Update `PROJECT_STATE.md`, `WORK_LOG.md` and this handoff.
-- Update `DECISIONS.md` only when a decision is actually made.
-
-## Completion criteria
-
-- The merge is conflict-free and the working tree is coherent.
-- The chosen task is implemented within its owning module.
-- Validation, lifecycle and stock rules are covered by tests.
-- Catalog and Inventory focused tests remain green.
-- Full-suite results and unrelated failures are recorded accurately.
-- Pint passes.
-- The next handoff identifies one concrete task.
-
-## Reporting format
-
-At handoff, state:
-- Objective.
-- Files changed.
-- Implementation details.
-- Tests executed and exact results.
-- Outstanding issues.
-- Recommended next action.
-
-Do not claim completion for work that has not been verified.
+**Next task:** Task 008.2 — Order Foundation (order creation, order items, order status lifecycle)
+**Next recommended action:** Open the Cart pull request into `develop`, then start Task 008.2 (Order Foundation).

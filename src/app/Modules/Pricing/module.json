@@ -1,0 +1,13 @@
+{
+    "name": "Pricing",
+    "description": "Product pricing and price history management.",
+    "version": "1.0.0",
+    "enabled": true,
+    "providers": [
+        "App\\Modules\\Pricing\\Providers\\PricingServiceProvider"
+    ],
+    "dependencies": [
+        "Core",
+        "Catalog"
+    ]
+}

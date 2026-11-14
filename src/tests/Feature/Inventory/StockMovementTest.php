@@ -1,6 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Modules\Catalog\Models\Product;
+use App\Modules\Catalog\Models\ProductVariant;
 use App\Modules\Inventory\Contracts\AdjustsStock;
 use App\Modules\Inventory\Data\AdjustStockData;
 use App\Modules\Inventory\Database\Factories\StockMovementFactory;
@@ -14,7 +17,7 @@ test('stock movements table has the expected append-only schema', function () {
     expect(Schema::hasTable('stock_movements'))->toBeTrue()
         ->and(Schema::hasColumns('stock_movements', [
             'id',
-            'product_id',
+            'variant_id',
             'location',
             'quantity_delta',
             'resulting_quantity',
@@ -22,6 +25,7 @@ test('stock movements table has the expected append-only schema', function () {
             'reference',
             'created_at',
         ]))->toBeTrue()
+        ->and(Schema::hasColumn('stock_movements', 'product_id'))->toBeFalse()
         ->and(Schema::hasColumn('stock_movements', 'updated_at'))->toBeFalse();
 });
 
@@ -33,8 +37,9 @@ test('stock movement factory creates a persisted movement', function () {
     $movement = $factory->forLocation('warehouse-c')->create();
 
     expect($movement->exists)->toBeTrue()
-        ->and($movement->product_id)->toBeInt()
-        ->and($movement->product)->toBeInstanceOf(Product::class)
+        ->and($movement->variant_id)->toBeInt()
+        ->and($movement->variant)->toBeInstanceOf(ProductVariant::class)
+        ->and($movement->variant->product)->toBeInstanceOf(Product::class)
         ->and($movement->location)->toBe('warehouse-c')
         ->and($movement->quantity_delta)->not->toBe(0)
         ->and($movement->resulting_quantity)->toBeGreaterThanOrEqual(0)
@@ -43,7 +48,7 @@ test('stock movement factory creates a persisted movement', function () {
 
     $this->assertDatabaseHas('stock_movements', [
         'id' => $movement->id,
-        'product_id' => $movement->product_id,
+        'variant_id' => $movement->variant_id,
         'location' => 'warehouse-c',
         'quantity_delta' => $movement->quantity_delta,
         'resulting_quantity' => $movement->resulting_quantity,
@@ -51,9 +56,9 @@ test('stock movement factory creates a persisted movement', function () {
 });
 
 test('successful stock increase creates a complete movement record', function () {
-    $product = Product::factory()->create();
+    $variant = Product::factory()->create()->variants()->sole();
     $inventory = Inventory::factory()
-        ->for($product)
+        ->forVariant($variant)
         ->create(['location' => 'warehouse-a', 'quantity' => 10]);
 
     $recordedAfter = now()->subSecond();
@@ -70,8 +75,8 @@ test('successful stock increase creates a complete movement record', function ()
     $movement = StockMovement::sole();
 
     expect($updated->quantity)->toBe(25)
-        ->and($movement->product_id)->toBe($product->id)
-        ->and($movement->product->is($product))->toBeTrue()
+        ->and($movement->variant_id)->toBe($variant->id)
+        ->and($movement->variant->is($variant))->toBeTrue()
         ->and($movement->location)->toBe('warehouse-a')
         ->and($movement->quantity_delta)->toBe(15)
         ->and($movement->resulting_quantity)->toBe(25)
@@ -82,9 +87,9 @@ test('successful stock increase creates a complete movement record', function ()
 });
 
 test('successful stock decrease creates a movement with a signed delta', function () {
-    $product = Product::factory()->create();
+    $variant = Product::factory()->create()->variants()->sole();
     $inventory = Inventory::factory()
-        ->for($product)
+        ->forVariant($variant)
         ->create(['location' => 'warehouse-a', 'quantity' => 20]);
 
     $updated = app(AdjustsStock::class)->handle(
@@ -102,7 +107,7 @@ test('successful stock decrease creates a movement with a signed delta', functio
         ->and($movement->quantity_delta)->toBe(-8)
         ->and($movement->resulting_quantity)->toBe(12)
         ->and($movement->location)->toBe('warehouse-a')
-        ->and($movement->product_id)->toBe($product->id)
+        ->and($movement->variant_id)->toBe($variant->id)
         ->and($movement->reference)->toBe('ORDER-2002');
 });
 
@@ -256,14 +261,14 @@ test('an outer transaction rollback reverts both stock and movement', function (
 });
 
 test('movements are recorded against the adjusted location only', function () {
-    $product = Product::factory()->create();
+    $variant = Product::factory()->create()->variants()->sole();
 
     $defaultInventory = Inventory::factory()
-        ->for($product)
+        ->forVariant($variant)
         ->create(['location' => 'default', 'quantity' => 10]);
 
     $secondaryInventory = Inventory::factory()
-        ->for($product)
+        ->forVariant($variant)
         ->create(['location' => 'warehouse-b', 'quantity' => 10]);
 
     app(AdjustsStock::class)->handle(
@@ -274,14 +279,15 @@ test('movements are recorded against the adjusted location only', function () {
     $movement = StockMovement::sole();
 
     expect($movement->location)->toBe('warehouse-b')
-        ->and($movement->product_id)->toBe($product->id)
+        ->and($movement->variant_id)->toBe($variant->id)
         ->and($defaultInventory->fresh()->quantity)->toBe(10)
         ->and($secondaryInventory->fresh()->quantity)->toBe(6);
 });
 
 test('deleting a product removes its stock movements', function () {
     $product = Product::factory()->create();
-    $inventory = Inventory::factory()->for($product)->create(['quantity' => 10]);
+    $variant = $product->variants()->sole();
+    $inventory = Inventory::factory()->forVariant($variant)->create(['quantity' => 10]);
 
     app(AdjustsStock::class)->handle(
         $inventory,
@@ -291,6 +297,25 @@ test('deleting a product removes its stock movements', function () {
     $movement = StockMovement::sole();
 
     $product->delete();
+
+    $this->assertDatabaseMissing('stock_movements', [
+        'id' => $movement->id,
+    ]);
+});
+
+test('deleting a variant removes its stock movements', function () {
+    $product = Product::factory()->create();
+    $variant = $product->variants()->sole();
+    $inventory = Inventory::factory()->forVariant($variant)->create(['quantity' => 10]);
+
+    app(AdjustsStock::class)->handle(
+        $inventory,
+        new AdjustStockData(quantityDelta: 5, reason: 'Stock received'),
+    );
+
+    $movement = StockMovement::sole();
+
+    $variant->delete();
 
     $this->assertDatabaseMissing('stock_movements', [
         'id' => $movement->id,

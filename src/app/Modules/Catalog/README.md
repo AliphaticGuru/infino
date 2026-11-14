@@ -9,7 +9,10 @@ inventory quantities, cart state, orders or payments.
 
 - Create, retrieve and update products.
 - Manage categories and the category-product relationship.
-- Generate collision-safe slugs through `Support\UniqueSlug`.
+- Own product variants, the default variant created with every product, and
+  variant administration (create, update, activate/deactivate, position).
+- Generate collision-safe slugs through `Support\UniqueSlug` and collision-safe
+  SKUs through `Support\UniqueSku`.
 - Validate product and category input.
 
 ## Depends On
@@ -18,12 +21,18 @@ inventory quantities, cart state, orders or payments.
 
 ## Used By
 
-- Inventory (product references only).
+- Inventory (variant references only).
 - Future pricing, cart, checkout and order workflows.
 
 ## Notes
 
-- Products represent `name`, `slug`, `description` and `is_active`.
+- Products represent `name`, `slug`, `description` and `is_active`, plus a
+  separate publication `status`.
+- Every product owns at least one `ProductVariant`. The variant is the canonical
+  purchasable unit and carries a globally unique (nullable) SKU.
+- `CreateProduct` creates the product and its default variant in one transaction,
+  rejecting duplicate SKUs and generating `SKU-{productId}` when none is given.
+- Existing products were backfilled idempotently with default variants.
 - Product retrieval supports ID and slug lookup through `FindsProducts`;
   unknown values raise `ModelNotFoundException`.
 - `UpdateProduct` supports partial updates: omitted fields keep their stored
@@ -31,6 +40,15 @@ inventory quantities, cart state, orders or payments.
   existing slug.
 - Categories support nullable parents with `nullOnDelete` promotion to root and
   a many-to-many relationship with products.
-- Controllers, API endpoints, Filament resources and UI are not implemented yet.
-- Product publication lifecycle, brands, attributes, variants and media remain
-  undecided or unimplemented.
+- Variants are administered through `FindsProductVariants`,
+  `CreatesProductVariants`, `UpdatesProductVariants`,
+  `TransitionsProductVariantStatus` and `RepositionsProductVariants`:
+  - the default variant is the product's oldest variant (lowest `id`) and cannot
+    be deactivated;
+  - SKUs are globally unique when present and `variant_key` is unique per product;
+  - positions are zero-based and normalized to `0..n-1` per product;
+  - variants are deactivated rather than deleted, preserving inventory and stock
+    movement history.
+- Filament product and category administration exists, including a variant
+  relation manager on the product edit page; attributes, media and pricing are
+  not implemented yet.

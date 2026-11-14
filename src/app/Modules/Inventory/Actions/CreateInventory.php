@@ -16,25 +16,25 @@ final class CreateInventory implements CreatesInventory
     {
         $validated = Validator::make(
             [
-                'product_id' => $data->productId,
+                'variant_id' => $data->variantId,
                 'location' => $data->location,
                 'quantity' => $data->quantity,
             ],
             [
-                'product_id' => ['required', 'integer', 'exists:products,id'],
+                'variant_id' => ['required', 'integer', 'exists:product_variants,id'],
                 'location' => [
                     'required',
                     'string',
                     'max:100',
                     Rule::unique('inventories', 'location')
-                        ->where(fn ($query) => $query->where('product_id', $data->productId)),
+                        ->where(fn ($query) => $query->where('variant_id', $data->variantId)),
                 ],
                 'quantity' => ['required', 'integer', 'min:0'],
             ],
         )->validate();
 
         return Inventory::create([
-            'product_id' => $validated['product_id'],
+            'variant_id' => $validated['variant_id'],
             'location' => $validated['location'],
             'quantity' => $validated['quantity'],
         ]);

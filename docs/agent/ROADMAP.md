@@ -1,7 +1,7 @@
 # Infino — Development Roadmap
 
 **Status:** Initial proposed sequence  
-**Last reviewed:** 2026-11-08
+**Last reviewed:** 2026-11-11
 
 This roadmap is a working plan. Priorities may change after test-baseline and product-scope reviews.
 
@@ -49,7 +49,7 @@ Completion criteria:
 Do not rebuild existing functionality without first auditing it.
 
 ## Stage 3 — Catalog MVP
-**Status:** In progress — product/category foundations, product retrieval/update and publication lifecycle complete
+**Status:** In progress — product/category foundations, retrieval/update, publication lifecycle, product-category assignment, variant administration, normalized attributes/options, product media/galleries, the Filament admin layer and the variant-first foundation are complete; pricing remains
 
 Suggested sequence:
 1. ~~Verify Catalog module registration.~~ Complete.
@@ -59,9 +59,13 @@ Suggested sequence:
 5. ~~Add product creation tests.~~ Complete.
 6. ~~Add product update and retrieval behavior.~~ Complete: find by ID/slug, partial updates and rename slug regeneration verified.
 7. ~~Define product publication/status behavior.~~ Complete: draft/published/archived enum with guarded transitions (DEC-017).
-8. ~~Add categories and category relationships.~~ Complete; product-category pivot and parent-child hierarchy verified.
-9. Specify brands, attributes and variants before implementation.
-10. Integrate the administrative workflow.
+8. ~~Add categories and category relationships.~~ Complete; product-category pivot, parent-child hierarchy and assignment actions verified.
+9. ~~Specify variants before implementation.~~ Complete: variant-first foundation, default variants and variant-keyed inventory (DEC-019). Brands remain open.
+10. ~~Integrate the administrative workflow.~~ Complete for products, categories, product variants and attributes/options.
+11. ~~Add variant administration (multiple variants, editing, deactivation, positions).~~ Complete: retrieval, creation, update, activation/deactivation, product-scoped positioning and Filament relation-manager administration (DEC-020, 2026-11-11).
+12. ~~Add normalized product attributes and options.~~ Complete: global definitions, owned options, product assignments, variant selections, derived variant keys and Filament administration (DEC-021, 2026-11-12). Descriptive values and non-`select` types remain future scope.
+13. ~~Implement product media and galleries.~~ Complete: Catalog-owned `product_media`, `MediaStorage` abstraction, product/variant galleries with gallery-scoped ordering and primary images, server-side validation, contract-backed Filament relation-manager administration and PostgreSQL enforcement (Task 006, DEC-022, 2026-11-13). Thumbnails, conversions, EXIF stripping and orphan-file pruning remain deferred.
+14. ~~Assess the Pricing module.~~ Complete: architecture assessment prepared (Task 007, 2026-11-13; DEC-023 Proposed). Proposes a separate Pricing module depending on Core and Catalog, variant-level base prices per currency in integer minor units, an append-only price-change ledger, contract-backed admin-only Filament administration, and defers price lists, customer-specific/scheduled/promotional pricing, tax and FX. **Task 007A implemented** on `feature/pricing` branch: module scaffold, config `pricing.php`, migrations `z12`/`z13`, `VariantPrice`/`VariantPriceChange` models, `Support\Money` value object, factories, `VariantPricePolicy`, and Pest foundation tests. DEC-023 Proposed; **Task 007B implemented** on `feature/pricing` branch: contracts `FindsVariantPrices`/`SetsVariantPrice`/`RemovesVariantPrice`, actions `FindVariantPrices`/`SetVariantPrice`/`RemoveVariantPrice`, service provider bindings, Pest action tests, and transactional history ledger recording.
 
 Completion criteria:
 - Product persistence is tested.
@@ -70,14 +74,14 @@ Completion criteria:
 - Module-specific tests run reliably.
 
 ## Stage 4 — Commerce foundations
-**Status:** In progress — Inventory stock foundation complete
+**Status:** In progress — Cart foundation implemented; Inventory stock foundation complete
 
 Candidate areas:
-- ~~Inventory.~~ Stock foundation implemented: product/location stock records and validated adjustments.
-- Pricing.
-- Cart and wishlist.
+- ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
+- Pricing — Tasks 007A–007D implemented (PostgreSQL CHECK constraint on variant_prices for compare-at validation, migration rollback verified, Money parse/format corrections, documentation finalized); DEC-023 Accepted; next: Stage 4.2 order foundation and checkout.
+- ✅ Cart and wishlist — Task 008.1 implemented and verified: Cart module foundation with authenticated and guest carts, item management, variant validation through Catalog, quantity bounds, add-time price snapshots through Pricing, expired-cart guards, and 24 passing Pest tests. Committed on `feature/cart`.
 - Checkout.
-- Orders.
+- Orders — Task 008.2 planned: Order foundation, order items, order numbering (ORD-YYYYMMDD-XXXX), status lifecycle.
 
 Define data ownership and lifecycle rules before implementing cross-module workflows.
 
