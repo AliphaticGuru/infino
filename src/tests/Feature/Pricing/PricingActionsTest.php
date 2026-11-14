@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
+use App\Modules\Filament\AdminPanelProvider;
 use App\Modules\Pricing\Actions\FindVariantPrices;
 use App\Modules\Pricing\Actions\RemoveVariantPrice;
 use App\Modules\Pricing\Actions\SetVariantPrice;
@@ -13,8 +14,14 @@ use App\Modules\Pricing\Contracts\SetsVariantPrice;
 use App\Modules\Pricing\Data\SetVariantPriceData;
 use App\Modules\Pricing\Models\VariantPrice;
 use App\Modules\Pricing\Models\VariantPriceChange;
+use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
+
+beforeEach(function () {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Filament::bootCurrentPanel();
+});
 
 test('contracts resolve through the container', function () {
     $finds = app(FindsVariantPrices::class);

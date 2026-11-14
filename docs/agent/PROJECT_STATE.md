@@ -253,9 +253,9 @@ Remaining gaps:
 - No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
 
 ### Pricing
-**Status:** Task 007A implemented on `feature/pricing` branch. DEC-023 Proposed.
+**Status:** Tasks 007A–007C implemented on `feature/pricing` branch. DEC-023 Proposed.
 
-Observed state: Pricing module foundation implemented with module scaffold, config, migrations, models, factories, Money value object, and Pest tests. Catalog and Inventory remain price-free.
+Observed state: Pricing module fully implemented. Foundation (007A): contracts, actions, Money value object, factories, policies, and Pest tests. Filament administration layer (007C): VariantPriceResource with create/edit/list pages, VariantPricesTable with currency filter, VariantPriceForm schema, and VariantPricePolicy access control. Catalog and Inventory remain price-free.
 
 Proposed in `docs/agent/tasks/active/007-pricing-module.md` and `docs/agent/modules/PRICING.md`:
 - A Pricing module depending on Core and Catalog; the variant is the priceable unit (DEC-019).

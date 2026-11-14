@@ -31,9 +31,24 @@
 - `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Updated with all three contract-to-action bindings registered.
 - `src/tests/Feature/Pricing/PricingActionsTest.php` — 16 Pest tests covering contract resolution, price creation, multi-currency storage, retrieval, currency rejection, negative/zero amount rejection, compare-at strict-greater-than validation, history recording on create/update/remove, history preservation after removal, variant price isolation, and model relationships.
 
-**Outstanding (next step: Task 007C):**
-- Implement pricing Filament resource and pages.
-- Update DEC-023 status from Proposed to Accepted after 007C completion.
+**Completed (Task 007C):**
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Resource with form, table, pages (create/edit/list), infolet, and policy registration.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Tables/VariantPricesTable.php` — Table with currency filter, amount formatting via Money, compare-at column, history icon, and admin-only action buttons (edit/delete gated by policy).
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/ListVariantPrices.php` — List page with header create action and currency-filterable table.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/CreateVariantPrice.php` — Create page with VariantPriceForm schema.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/EditVariantPrice.php` — Edit page with VariantPriceForm schema.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Schemas/VariantPriceForm.php` — Form schema with variant select, currency select, amount_minor, compare_at_amount_minor, and changed_by fields.
+- `src/app/Providers/Filament/AdminPanelProvider.php` — Added `->discoverResources(in: app_path('Modules/Pricing/Filament/Resources'), for: 'App\Modules\Pricing\Filament\Resources')`.
+
+**Outstanding:**
+- Update DEC-023 status from Proposed to Accepted after 007C/D completion cycle.
+
+**Documentation updated:**
+- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Tasks 007A–007C details.
+- `docs/agent/ROADMAP.md` — Task 007C implemented; next steps noted.
+- `docs/agent/tasks/active/007-pricing-module.md` — Status updated to 007A–007C implemented.
+- `docs/agent/modules/PRICING.md` — Status updated to Implemented.
+- `docs/agent/HANDOFF.md` — This update.
 
 **Documentation updated:**
 - `docs/agent/PROJECT_STATE.md` — Pricing section updated with Task 007A and 007B details, test results, and implementation facts.

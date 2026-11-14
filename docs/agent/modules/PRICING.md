@@ -1,6 +1,6 @@
 # Pricing Module Specification
 
-**Status:** Proposed — architecture assessment only, not implemented
+**Status:** Implemented — 007A (foundation: contracts, actions, Money, tests, policies) 007B (not separately tracked) 007C (Filament administration layer)
 **Location:** `src/app/Modules/Pricing/` (does not exist yet)
 **Dependencies:** Core, Catalog
 **Decision:** DEC-023 (Proposed)

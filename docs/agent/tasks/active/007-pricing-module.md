@@ -1,6 +1,7 @@
 # Task 007 — Pricing Module
 
-- Status: 007A implemented (foundation complete); 007B–007D pending
+- Status: 007A–007C implemented; 007D pending
+- 007C: Pricing Filament administration layer with variant price create/edit/list, currency filtering, policy enforcement, and history preservation
 - Priority: High
 - Depends on: [006-product-media-and-galleries.md](006-product-media-and-galleries.md)
 - Related: [003-catalog-module.md](003-catalog-module.md), [004-inventory-module.md](004-inventory-module.md), [005-catalog-attribute-system.md](005-catalog-product-attributes-and-options.md)

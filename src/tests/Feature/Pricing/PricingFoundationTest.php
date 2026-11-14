@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Foundation\Modules\ModuleRepository;
 use App\Modules\Catalog\Models\Product;
 use App\Modules\Catalog\Models\ProductVariant;
+use App\Modules\Filament\AdminPanelProvider;
 use App\Modules\Inventory\Actions\AdjustStock;
 use App\Modules\Inventory\Actions\CreateInventory;
 use App\Modules\Inventory\Contracts\AdjustsStock;
@@ -14,8 +15,17 @@ use App\Modules\Inventory\Data\CreateInventoryData;
 use App\Modules\Inventory\Database\Factories\InventoryFactory;
 use App\Modules\Inventory\Models\Inventory;
 use App\Modules\Inventory\Providers\InventoryServiceProvider;
+use App\Modules\Pricing\Actions\SetVariantPrice;
+use App\Modules\Pricing\Models\VariantPrice;
+use App\Modules\Pricing\Support\Money;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+
+beforeEach(function () {
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Filament::bootCurrentPanel();
+});
 
 test('inventories table has the expected schema', function () {
     expect(Schema::hasTable('inventories'))->toBeTrue()

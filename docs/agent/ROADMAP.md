@@ -78,7 +78,7 @@ Completion criteria:
 
 Candidate areas:
 - ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
-- Pricing — Task 007B implemented (actions/contracts: FindsVariantPrices, SetsVariantPrice, RemovesVariantPrice with validation, transactions, locking and ledger recording); DEC-023 remains Proposed; next: 007C Filament administration.
+- Pricing — Tasks 007A–007C implemented (Filament administration layer: VariantPriceResource with create/edit/list, VariantPricesTable with currency filter, VariantPriceForm schema, VariantPricePolicy admin access control); DEC-023 remains Proposed; next: 007D (price history viewer, compare-at validation).
 - Cart and wishlist.
 - Checkout.
 - Orders.
