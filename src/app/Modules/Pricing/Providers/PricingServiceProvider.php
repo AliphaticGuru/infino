@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Pricing\Providers;
 
 use App\Modules\Core\Providers\BaseModuleServiceProvider;
-use App\Modules\Policies\VariantPricePolicy;
 use App\Modules\Pricing\Actions\FindVariantPrices;
 use App\Modules\Pricing\Actions\RemoveVariantPrice;
 use App\Modules\Pricing\Actions\SetVariantPrice;
@@ -13,6 +12,7 @@ use App\Modules\Pricing\Contracts\FindsVariantPrices;
 use App\Modules\Pricing\Contracts\RemovesVariantPrice;
 use App\Modules\Pricing\Contracts\SetsVariantPrice;
 use App\Modules\Pricing\Models\VariantPrice;
+use App\Modules\Pricing\Policies\VariantPricePolicy;
 use Illuminate\Support\Facades\Gate;
 
 final class PricingServiceProvider extends BaseModuleServiceProvider

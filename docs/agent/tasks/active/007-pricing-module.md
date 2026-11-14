@@ -1,6 +1,7 @@
 # Task 007 — Pricing Module
 
-- Status: 007A–007C implemented; 007D pending
+- Status: 007A–007D implemented; DEC-023 Accepted
+- 007D: PostgreSQL CHECK constraint on variant_prices, compare-at validation hardening, migration rollback verification, and documentation finalization
 - 007C: Pricing Filament administration layer with variant price create/edit/list, currency filtering, policy enforcement, and history preservation
 - Priority: High
 - Depends on: [006-product-media-and-galleries.md](006-product-media-and-galleries.md)
@@ -246,11 +247,12 @@ before/after quantity snapshots. It is still sufficient for audit and future
 1. **007A — Foundation:** module skeleton, config, money helper, migrations,
    models, factories, policy, provider bindings and schema/model tests. **DONE**.
 2. **007B — Domain actions:** DTOs, contracts, create/update/remove actions,
-   ledger recording, validation and concurrency-sensitive tests.
+   ledger recording, validation and concurrency-sensitive tests. **DONE**.
 3. **007C — Filament admin:** resource/pages/form/table using contracts only,
-   admin authorization tests.
+   admin authorization tests. **DONE**.
 4. **007D — Hardening:** PostgreSQL constraint verification, documentation
    updates, and follow-up issue creation for price lists/promotions if needed.
+   **DONE** (see Known defects for the mislabeled Pricing test file).
 
 ## Acceptance criteria for Task 007
 
@@ -280,14 +282,35 @@ before/after quantity snapshots. It is still sufficient for audit and future
 - When a variant has no price, should storefront/cart APIs treat it as hidden,
   unavailable, or explicitly unpurchasable? (Cart/Storefront decision, deferred)
 
+## Verification results (2026-11-14)
+
+- Pricing focused suite: **43 passed (122 assertions)**.
+- Catalog Filament suite: **81 passed (396 assertions)**.
+- Full suite: **487 passed, 3 failed (1513 assertions)**; the 3 failures are
+  pre-existing (`AuthenticationTest`, `TwoFactorChallengeTest`,
+  `PostCreatePageTest`).
+- Fresh PostgreSQL migration verified on a throwaway database; the
+  `variant_prices_compare_at_gte_amount` CHECK constraint is present and
+  survives a rollback/re-migrate cycle.
+
+## Known defects
+
+- `tests/Feature/Pricing/PricingFoundationTest.php` is mislabeled: it contains
+  18 Inventory tests rather than Pricing foundation tests. Pricing foundation
+  coverage is still missing and must be added separately.
+- Pint reports 7 pre-existing style issues in the Pricing Filament resources and
+  Pricing tests.
+- PHPStan reports pre-existing errors in `app/Modules/Pricing` (Filament 5 class
+  moves, model PHPDoc generics, `Money::init()` array type).
+
 ## Documentation status
 
-- `docs/agent/PROJECT_STATE.md` — updated with Task 007A implementation facts
-- `docs/agent/ROADMAP.md` — Task 007A marked implemented
+- `docs/agent/PROJECT_STATE.md` — updated with Task 007A–007D implementation
+  facts, verified test results and known debt
+- `docs/agent/ROADMAP.md` — Tasks 007A–007D marked implemented; DEC-023 Accepted
 - `docs/agent/HANDOFF.md` — updated with implementation details and next step
-- `docs/agent/DECISIONS.md` — DEC-023 remains Proposed; no changes needed until
-  007B completion
-- `docs/agent/modules/PRICING.md` — module specification already describes the
-  proposed boundary; no changes needed for 007A
+- `docs/agent/DECISIONS.md` — DEC-023 Accepted
+- `docs/agent/modules/PRICING.md` — module specification describes the
+  implemented boundary
 - `docs/agent/tasks/active/007-pricing-module.md` — this file, updated to reflect
-  007A implementation status
+  007A–007D implementation status

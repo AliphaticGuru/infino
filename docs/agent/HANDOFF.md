@@ -32,7 +32,7 @@
 - `src/tests/Feature/Pricing/PricingActionsTest.php` — 16 Pest tests covering contract resolution, price creation, multi-currency storage, retrieval, currency rejection, negative/zero amount rejection, compare-at strict-greater-than validation, history recording on create/update/remove, history preservation after removal, variant price isolation, and model relationships.
 
 **Completed (Task 007C):**
-- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Resource with form, table, pages (create/edit/list), infolet, and policy registration.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Resource with form, table, pages (create/edit/list), infolist, and policy registration.
 - `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Tables/VariantPricesTable.php` — Table with currency filter, amount formatting via Money, compare-at column, history icon, and admin-only action buttons (edit/delete gated by policy).
 - `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/ListVariantPrices.php` — List page with header create action and currency-filterable table.
 - `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Pages/CreateVariantPrice.php` — Create page with VariantPriceForm schema.
@@ -40,19 +40,31 @@
 - `src/app/Modules/Pricing/Filament/Resources/VariantPrice/Schemas/VariantPriceForm.php` — Form schema with variant select, currency select, amount_minor, compare_at_amount_minor, and changed_by fields.
 - `src/app/Providers/Filament/AdminPanelProvider.php` — Added `->discoverResources(in: app_path('Modules/Pricing/Filament/Resources'), for: 'App\Modules\Pricing\Filament\Resources')`.
 
+**Completed (Task 007D):**
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php` — Added the PostgreSQL CHECK constraint `variant_prices_compare_at_gte_amount` (`compare_at_amount_minor IS NULL OR compare_at_amount_minor >= amount_minor`). SQLite falls back to the application-level validation in `SetVariantPrice`.
+- `src/app/Modules/Pricing/Support/Money.php` — Corrected `parse()` to scale whole-unit input to minor units, accept `0`, `0.00` and `.56`, and reject malformed input; `format()` now handles exponent 0 and preserves signs.
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Fixed the policy import from the non-existent `App\Modules\Policies\VariantPricePolicy` to `App\Modules\Pricing\Policies\VariantPricePolicy`.
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php` — Replaced the non-existent `heroicon-o-coin` navigation icon with `heroicon-o-banknotes`.
+- `src/tests/Feature/Pricing/MoneyTest.php` — 9 Pest tests covering parse/format, exponents, zero handling, malformed input, unknown currencies and arithmetic.
+- `src/config/pricing.php` — Committed the pricing configuration that `PricingServiceProvider` already merges at boot (previously untracked, which made a clean checkout fail to boot).
+- DEC-023 status updated from Proposed to Accepted.
+
+**Verification (2026-11-14):**
+- Pricing focused suite: **43 passed (122 assertions)**.
+- Catalog Filament suite: **81 passed (396 assertions)**.
+- Full suite: **487 passed, 3 failed (1513 assertions)**; the 3 failures are pre-existing (`AuthenticationTest`, `TwoFactorChallengeTest`, `PostCreatePageTest`).
+- Fresh PostgreSQL migration verified on a throwaway database; the `variant_prices_compare_at_gte_amount` constraint is present and survives rollback/re-migrate.
+
 **Outstanding:**
-- Update DEC-023 status from Proposed to Accepted after 007C/D completion cycle.
+- `tests/Feature/Pricing/PricingFoundationTest.php` is mislabeled: it contains 18 Inventory tests. The Pricing foundation coverage it was meant to provide is still missing. This is a pre-existing defect, not fixed here.
+- Pint reports 7 pre-existing style issues in the Pricing Filament resources and Pricing tests.
+- PHPStan reports pre-existing errors in `app/Modules/Pricing` (Filament 5 class moves, model PHPDoc generics, `Money::init()` array type).
 
 **Documentation updated:**
-- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Tasks 007A–007C details.
-- `docs/agent/ROADMAP.md` — Task 007C implemented; next steps noted.
-- `docs/agent/tasks/active/007-pricing-module.md` — Status updated to 007A–007C implemented.
-- `docs/agent/modules/PRICING.md` — Status updated to Implemented.
+- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Tasks 007A–007D details, verified test results and known debt.
+- `docs/agent/ROADMAP.md` — Task 007D implemented; DEC-023 Accepted; next step is the Cart/order foundation.
+- `docs/agent/tasks/active/007-pricing-module.md` — Status updated to 007A–007D implemented; DEC-023 Accepted.
+- `docs/agent/DECISIONS.md` — DEC-023 Accepted with evidence supporting acceptance.
 - `docs/agent/HANDOFF.md` — This update.
 
-**Documentation updated:**
-- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Task 007A and 007B details, test results, and implementation facts.
-- `docs/agent/ROADMAP.md` — Task 007A marked implemented; Task 007B implemented; DEC-023 Proposed; next steps noted.
-- `docs/agent/DECISIONS.md` — DEC-023 remains Proposed; no changes needed until 007C.
-
-**Next recommended action:** Review and approve Task 007B (pricing actions/contracts), then proceed to Task 007C (Filament administration).
+**Next recommended action:** Proceed to Task 008.1 (Cart foundation) on `feature/cart`.

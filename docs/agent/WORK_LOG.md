@@ -2,6 +2,56 @@
 
 This is a concise chronological record of significant project work. Add entries after meaningful implementation or architectural work.
 
+## 2026-11-14 — Pricing hardening (Task 007D)
+
+### Objective
+Complete Task 007D on `feature/pricing`: enforce the compare-at invariant in
+PostgreSQL, correct the Money parse/format behaviour, make the committed Pricing
+baseline runnable from a clean checkout, and accept DEC-023.
+
+### Work performed
+- Committed `src/config/pricing.php`; `PricingServiceProvider` already merged it
+  at boot, so the committed branch previously failed to boot on a clean checkout.
+- Added the PostgreSQL CHECK constraint `variant_prices_compare_at_gte_amount`
+  to the `z12` migration, driver-guarded for SQLite.
+- Corrected `Money::parse()` to scale whole-unit input to minor units, accept
+  `0`, `0.00` and `.56`, and reject malformed input; `format()` handles
+  exponent 0 and preserves signs.
+- Fixed the policy import namespace in `PricingServiceProvider` from
+  `App\Modules\Policies\VariantPricePolicy` to the module's real namespace.
+- Replaced the non-existent `heroicon-o-coin` navigation icon with
+  `heroicon-o-banknotes`.
+- Added `tests/Feature/Pricing/MoneyTest.php` (9 tests).
+- Accepted DEC-023 and recorded the known documentation defects.
+
+### Files changed
+- `src/config/pricing.php`
+- `src/app/Modules/Pricing/Support/Money.php`
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php`
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php`
+- `src/app/Modules/Pricing/Filament/Resources/VariantPriceResource.php`
+- `src/tests/Feature/Pricing/MoneyTest.php`
+- `docs/agent/DECISIONS.md`, `PROJECT_STATE.md`, `ROADMAP.md`, `HANDOFF.md`
+- `docs/agent/tasks/active/007-pricing-module.md`
+
+### Tests and verification
+- Pricing focused suite: **43 passed (122 assertions)**.
+- Catalog Filament suite: **81 passed (396 assertions)**.
+- Full suite: **487 passed, 3 failed (1513 assertions)**; the 3 failures are
+  pre-existing (`AuthenticationTest`, `TwoFactorChallengeTest`,
+  `PostCreatePageTest`).
+- Fresh PostgreSQL migration verified on a throwaway database; the
+  `variant_prices_compare_at_gte_amount` constraint survives rollback/re-migrate.
+
+### Outstanding issues
+- `tests/Feature/Pricing/PricingFoundationTest.php` is mislabeled and contains
+  18 Inventory tests; real Pricing foundation coverage is still missing.
+- Pint: 7 pre-existing style issues in Pricing Filament resources/tests.
+- PHPStan: pre-existing errors in `app/Modules/Pricing`.
+
+### Next action
+Proceed to Task 008.1 (Cart foundation) on `feature/cart`.
+
 ## 2026-11-13 — Catalog product media and galleries (Task 006)
 
 ### Objective

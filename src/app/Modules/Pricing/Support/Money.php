@@ -48,8 +48,8 @@ final class Money
 
         $exponent = self::$exponents[$currency];
 
-        // Reject empty or pure whitespace
-        if (! preg_match('/^0$|^[1-9]\d*(\.\d+)?$/', $value)) {
+        // Reject empty or pure whitespace; allow "0", "0.00", "12.34" and ".56".
+        if (! preg_match('/^(?:(?:0|[1-9]\d*)(?:\.\d+)?|\.\d+)$/', $value)) {
             throw ValidationException::withMessages([
                 'amount' => ["Invalid monetary value [{$value}]."],
             ]);
@@ -64,17 +64,21 @@ final class Money
 
         // Handle integer case (no decimal separator)
         if (! str_contains($value, '.')) {
-            // "0" or positive integer
+            if ($value === '0') {
+                return 0;
+            }
+
             $intVal = (int) $value;
 
-            // Reject if cast changed the value (e.g. "1.5" without dot... but regex catches this)
-            if ((string) $intVal !== ltrim($value, '0')) {
+            // Reject if the cast changed the value (overflow or non-canonical)
+            if ((string) $intVal !== $value) {
                 throw ValidationException::withMessages([
                     'amount' => ["Precision beyond currency exponent ({$exponent} decimal places) for [{$currency}]."],
                 ]);
             }
 
-            return $intVal * (int) pow10($exponent);
+            // Whole-unit input is scaled to minor units (e.g. 12 NGN -> 1200).
+            return $intVal * pow10($exponent);
         }
 
         // Handle decimal case
@@ -102,7 +106,7 @@ final class Money
         $combined = $integerPart.$decimalPart;
         $totalMinor = (int) $combined;
 
-        return $totalMinor * (int) pow10($exponent - $decimalLen);
+        return $totalMinor;
     }
 
     /**
@@ -119,9 +123,14 @@ final class Money
 
         $exponent = self::$exponents[$currency];
 
-        // Handle zero
+        // Handle exponent 0 (whole units, no decimal point)
+        if ($exponent === 0) {
+            return (string) $minorUnits;
+        }
+
+        // Handle zero with decimal places
         if ($minorUnits === 0) {
-            return str_pad('0', $exponent, '0', STR_PAD_LEFT).'.'.str_pad('0', $exponent, '0');
+            return '0.'.str_pad('', $exponent, '0');
         }
 
         // Determine sign
@@ -133,13 +142,13 @@ final class Money
         $minor = $absMinor % pow10($exponent);
 
         // Format with leading zeros for minor part
-        $format = '%.'.$exponent.'d';
+        $format = '%0'.$exponent.'d';
         $minorFormatted = sprintf($format, $minor);
 
         $result = $negative ? '-' : '';
         $result .= $major.'.'.$minorFormatted;
 
-        return rtrim(rtrim($result, '0'), '.');
+        return $result;
     }
 
     /**

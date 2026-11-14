@@ -1,6 +1,6 @@
 # Infino — Project State
 
-**Last inspected:** 2026-11-13
+**Last inspected:** 2026-11-14
 **Current branch at inspection:** `feature/pricing`
 
 This document records observed repository state. Reinspect the code before relying on it.
@@ -253,11 +253,11 @@ Remaining gaps:
 - No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
 
 ### Pricing
-**Status:** Tasks 007A–007C implemented on `feature/pricing` branch. DEC-023 Proposed.
+**Status:** Tasks 007A–007D implemented on `feature/pricing` branch. DEC-023 Accepted.
 
-Observed state: Pricing module fully implemented. Foundation (007A): contracts, actions, Money value object, factories, policies, and Pest tests. Filament administration layer (007C): VariantPriceResource with create/edit/list pages, VariantPricesTable with currency filter, VariantPriceForm schema, and VariantPricePolicy access control. Catalog and Inventory remain price-free.
+Observed state: Pricing module fully implemented through 007D. Foundation (007A): contracts, actions, Money value object, factories, policies, and Pest tests. Filament administration layer (007C): VariantPriceResource with create/edit/list pages, VariantPricesTable with currency filter, VariantPriceForm schema, and VariantPricePolicy access control. PostgreSQL CHECK constraint added to `variant_prices` table ensuring `compare_at_amount_minor >= amount_minor` when present, with application-level validation in SetVariantPrice action also enforcing strict greater-than. Catalog and Inventory remain price-free.
 
-Proposed in `docs/agent/tasks/active/007-pricing-module.md` and `docs/agent/modules/PRICING.md`:
+Specified in `docs/agent/tasks/active/007-pricing-module.md` and `docs/agent/modules/PRICING.md`:
 - A Pricing module depending on Core and Catalog; the variant is the priceable unit (DEC-019).
 - `variant_prices` holds one current base price per `(variant_id, currency)` and an optional compare-at amount in the same currency.
 - Money is stored as integer minor units (`bigint`) plus an uppercase ISO 4217 `char(3)` currency; no floats, and no `bcmath`/`gmp` dependency.
@@ -284,14 +284,14 @@ Database schema implemented:
 - `variant_prices`: one current base price per `(variant_id, currency)` with unique constraint, `amount_minor` and optional `compare_at_amount_minor` in integer minor units.
 - `variant_price_changes`: append-only ledger with `change_type` (`created`/`updated`/`removed`), old/new amounts and compare-at values, `changed_by` actor reference; no `updated_at`.
 
-Test results (run via Docker Compose):
-- Focused Pricing foundation tests: see detailed results below.
-- Focused Pricing action tests: 16 passed (42 assertions) — `PricingActionsTest.php` covers contract resolution, price creation, multi-currency storage, retrieval, currency rejection, negative/zero amount rejection, compare-at strict-greater-than validation, history recording on create/update/remove, history preservation after removal, variant price isolation, and model relationships.
-- Catalog focused suite: 337 passed (1073 assertions) - no regressions.
-- Inventory focused suite: 65 passed (221 assertions) - no regressions.
-- Full suite: 425 passed, 32 failed (32 failures are pre-existing: Authentication 2FC, PostCreatePageTest, and some Catalog Filament tests unrelated to pricing).
-- Pint: passes on touched files (59 style issues auto-repaired).
-- PHPStan: module-level checks pending; no new errors introduced.
+Test results (verified 2026-11-14 via Docker Compose):
+- Pricing focused suite (`tests/Feature/Pricing/`): **43 passed (122 assertions)**. This comprises `PricingActionsTest.php` (16 tests), `MoneyTest.php` (9 tests) and `PricingFoundationTest.php` (18 tests).
+- `PricingFoundationTest.php` is currently mislabeled: it contains 18 Inventory tests, not Pricing foundation tests. This is a known pre-existing defect recorded here and in `docs/agent/tasks/active/007-pricing-module.md`; it is not yet fixed.
+- Catalog Filament suite: **81 passed (396 assertions)** after the policy namespace and navigation icon fixes.
+- Full suite: **487 passed, 3 failed (1513 assertions)**. The 3 failures are pre-existing and unrelated to Pricing: `AuthenticationTest` and `TwoFactorChallengeTest` (two-factor redirect) plus `PostCreatePageTest`.
+- Fresh PostgreSQL migration verified on a throwaway database, including `z12`–`z13`; the `variant_prices_compare_at_gte_amount` CHECK constraint is present and survives a rollback/re-migrate cycle.
+- Pint: Pricing module and Pricing tests still report 7 pre-existing style issues (Filament resources and Pricing tests). These predate this task and are not auto-fixed here.
+- PHPStan: `app/Modules/Pricing` still reports pre-existing errors (Filament 5 class moves, model PHPDoc generics, `Money::init()` array type). They are recorded as known debt.
 
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
@@ -348,6 +348,7 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After Task 004 (product variant administration): **263 passed, 3 failed (825 assertions)**.
 - After Task 005 (normalized product attributes and options): **348 passed, 3 failed (1117 assertions)**.
 - After Task 006 (product media and galleries): **420 passed, 3 failed (1328 assertions)**.
+- After Task 007D (Pricing hardening, 2026-11-14): **487 passed, 3 failed (1513 assertions)**. The 3 failures are pre-existing and unrelated to Pricing: `AuthenticationTest`/`TwoFactorChallengeTest` (two-factor redirect) and `PostCreatePageTest`.
 - Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004; **265 passed (862 assertions)** after Task 005; **337 passed (1073 assertions)** after Task 006.
 - Task 006 media tests: **72 passed (211 assertions)**.
 - Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004; **69 passed (334 assertions)** after Task 005.
@@ -372,7 +373,7 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
 - Full-project PHPStan: 21 pre-existing errors outside Catalog and Inventory (Livewire, Core, Foundation, Identity and config).
 
-Remaining failures:
+Remaining failures (as of 2026-11-14):
 1. `Tests\Feature\Auth\AuthenticationTest` — two-factor users are redirected to `/dashboard` instead of `/two-factor-challenge`.
 2. `Tests\Feature\Auth\TwoFactorChallengeTest` — same two-factor challenge redirect failure.
 3. `Tests\Feature\PostCreatePageTest` — page returns 500 because `layouts/app/sidebar.blade.php` reads `name` from a null authenticated user.

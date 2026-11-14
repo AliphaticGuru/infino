@@ -684,10 +684,9 @@ Resolved questions:
    follow-up.
 
 ### DEC-023 — Pricing is a separate module with integer minor-unit money
-**Status:** Proposed
-**Date:** 2026-11-13
+**Status:** Accepted
+**Date:** 2026-11-14
 **Branch:** `feature/pricing`
-
 Context:
 DEC-019 makes the product variant the only purchasable unit and states that
 pricing belongs to a future Pricing module, not to Catalog. Catalog, Inventory
@@ -696,7 +695,7 @@ or monetary storage exists in the repository. The runtime has `intl`, `mbstring`
 and `fileinfo` but not `bcmath` or `gmp`, so arbitrary-precision decimal
 arithmetic is unavailable.
 
-Decision (proposed):
+Decision (Accepted):
 - Pricing is a dedicated module under `src/app/Modules/Pricing/` that depends on
   Core and Catalog and references `product_variants.id`. Catalog must not depend
   on Pricing and must not gain price columns or price relationships.
@@ -718,7 +717,7 @@ Decision (proposed):
 - Administration is a standalone `VariantPriceResource` discovered from
   `app/Modules/Pricing/Filament/Resources`, not a Catalog product-page tab.
 
-Options considered:
+Options considered (rejected):
 - Price columns on `products` or `product_variants`: rejected; violates DEC-019
   and Catalog ownership, and makes multi-currency and history awkward.
 - Prices inside Inventory or a future Cart module: rejected; those modules own
@@ -728,8 +727,8 @@ Options considered:
 - A single `price` column with one store currency: rejected for the MVP because
   explicit per-currency rows are simpler to reason about and extend than a later
   multi-currency migration.
-- Adding `starts_at`/`ends_at` now: rejected; nullable windows imply a resolver
-  and overlap rules that the MVP does not implement.
+- Adding `starts_at`/`ends_at` now: nullable windows imply a resolver and overlap
+  rules that the MVP does not implement.
 
 Consequences and migration implications:
 - New additive migrations `z12_create_variant_prices_table.php` and
@@ -743,20 +742,6 @@ Consequences and migration implications:
 - No Composer dependency is added.
 - Once Orders exist, order lines must snapshot amount and currency rather than
   joining live price rows.
-- Not implemented. The full assessment and task breakdown are in
-  `docs/agent/tasks/active/007-pricing-module.md`; the proposed module
-  specification is `docs/agent/modules/PRICING.md`.
-
-Open questions recorded in the task document:
-1. Default storefront currency and whether multi-currency is required at launch.
-2. Whether compare-at is in the MVP and must be greater than or equal to the
-   selling price.
-3. Whether prices may be removed (audited) or only zeroed.
-4. Tax-inclusive vs tax-exclusive storage.
-5. Whether several currencies per variant are allowed in the MVP.
-6. Whether a read-only ledger UI is required for MVP.
-7. Actor capture for CLI/seed changes.
-8. Future non-admin price visibility.
 
 ## Decision protocol
 

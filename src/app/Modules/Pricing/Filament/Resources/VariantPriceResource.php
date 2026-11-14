@@ -29,7 +29,7 @@ final class VariantPriceResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'currency';
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-coin';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
 
     protected static ?string $navigationLabel = 'Variant Prices';
 

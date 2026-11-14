@@ -74,11 +74,11 @@ Completion criteria:
 - Module-specific tests run reliably.
 
 ## Stage 4 — Commerce foundations
-**Status:** In progress — Inventory stock foundation complete
+**Status:** In progress — Inventory stock foundation complete; Pricing 007D complete
 
 Candidate areas:
 - ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
-- Pricing — Tasks 007A–007C implemented (Filament administration layer: VariantPriceResource with create/edit/list, VariantPricesTable with currency filter, VariantPriceForm schema, VariantPricePolicy admin access control); DEC-023 remains Proposed; next: 007D (price history viewer, compare-at validation).
+- Pricing — Tasks 007A–007D implemented (PostgreSQL CHECK constraint on variant_prices for compare-at validation, migration rollback verified, Money parse/format corrections, documentation finalized); DEC-023 Accepted; next: Cart foundation.
 - Cart and wishlist.
 - Checkout.
 - Orders.
