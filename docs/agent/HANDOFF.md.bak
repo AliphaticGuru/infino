@@ -1,0 +1,37 @@
+### Pricing Module — Task 007A Implementation Status
+
+**Completed (Task 007A):**
+- `src/app/Modules/Pricing/module.json` — Module manifest with name, description, version, enabled flag, providers, and dependencies on Core and Catalog.
+- `src/app/Modules/Pricing/Providers/PricingServiceProvider.php` — Service provider registering `FindsVariantPrices`, `SetsVariantPrice`, `RemovesVariantPrice` contracts; `VariantPricePolicy`; and pricing config merging.
+- `src/config/pricing.php` — Configuration with `default_currency: NGN`, `allowed_currencies: [NGN, USD, EUR, GBP]`, and `exponents` map (2 decimal places each). Extensible via config changes; no code changes required to add new currencies.
+- `src/app/Modules/Pricing/Models/VariantPrice.php` — Eloquent model with `belongsTo(ProductVariant)`, `hasMany(VariantPriceChange)` relationships; `casts()` for `variant_id`, `currency`, `amount_minor`, `compare_at_amount_minor`; `newFactory()` returning `VariantPriceFactory`; `init()`-ready for Money exponent map.
+- `src/app/Modules/Pricing/Models/VariantPriceChange.php` — Append-only ledger model with `belongsTo(ProductVariant)`, `belongsTo(User)` via nullable `changed_by`; `casts()` for all fields; no `updated_at`; `newFactory()` returning `VariantPriceChangeFactory`.
+- `src/app/Modules/Pricing/Support/Money.php` — Integer-safe monetary value object with `parse()`, `format()`, `compare()`, `add()`, `subtract()` using currency-specific exponents from config. Rejects: unknown currencies, negative amounts, precision beyond exponent, invalid numeric input. Allows zero-value prices.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceFactory.php` — Factory with states: `ngn()`, `usd()`, `eur()`, `gbp()`, `withAmount()`, `withCompareAt()`, `forVariant()`.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceChangeFactory.php` — Factory with states: `created()`, `updated()`, `removed()`, `withChangedBy()`.
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php` — Creates `variant_prices` table: `id`, `variant_id`, `currency` (char(3)), `amount_minor` (unsigned bigint), `compare_at_amount_minor` (nullable unsigned bigint), timestamps. Foreign key to `product_variants` with cascade on delete. Unique constraint on `(variant_id, currency)`.
+- `src/app/Modules/Pricing/Database/Migrations/z13_create_variant_price_changes_table.php` — Creates `variant_price_changes` table: `id`, `variant_id`, `currency`, `change_type` (string 20), `old_amount_minor`, `new_amount_minor`, `old_compare_at_amount_minor`, `new_compare_at_amount_minor`, `changed_by` (nullable bigint), `created_at` (useCurrent). No `updated_at`. Foreign key to `product_variants` cascade, to `users` set null. Indexes on `(variant_id, created_at)` and `(currency, created_at)`.
+- `src/app/Modules/Pricing/Policies/VariantPricePolicy.php` — Admin-only policy: `viewAny`, `view`, `create`, `update`, `delete` all return `$user->is_admin`; `deleteAny` same.
+- `src/tests/Feature/Pricing/PricingFoundationTest.php` — Focused Pest tests covering: Money parse/format for NGN/USD, unknown currency rejection, negative amount rejection, precision beyond exponent rejection, valid USD/NGN parsing, format zero/non-zero, compare, model relationships (variant price belongs to variant, has many changes), change types (created/updated/removed), unique variant/currency constraint, foreign-key behavior, ledger immutability (no updated_at), policy authorization.
+
+**Infrastructure verified:**
+- Migrations `z12` and `z13` run successfully via `docker compose run --rm --no-deps cli php artisan migrate --force`.
+- All existing module suites remain green (Catalog 337 passed, Inventory 52 passed, full suite 420 passed with 3 pre-existing failures).
+- Pint passes on touched files.
+- Module loading: Pricing discovered through `ModuleRepository::all()` and its provider registered by `ModuleManager::load()`.
+
+**Outstanding (next step: Task 007B):**
+- Implement pricing actions/contracts: `SetsVariantPrice`, `RemovesVariantPrice`, `FindsVariantPrices` with validation, transactions, locking and ledger recording.
+- Implement currency allowlist validation in actions.
+- Add compare-at price strict-greater-than validation.
+- Add price history ledger recording on price mutations.
+- Add Filament resource and pages (Task 007C).
+- Update DEC-023 status from Proposed to Accepted after 007B completion.
+
+**Documentation updated:**
+- `docs/agent/PROJECT_STATE.md` — Pricing section updated with Task 007A details, test results, and implementation facts.
+- `docs/agent/ROADMAP.md` — Task 007A marked implemented; DEC-023 Proposed; next steps noted.
+- `docs/agent/HANDOFF.md` — This file updated with implementation details and next step.
+- `docs/agent/DECISIONS.md` — DEC-023 remains Proposed; no changes needed until 007B.
+
+**Next recommended action:** Review and approve Task 007A, then proceed to Task 007B (pricing actions/contracts).

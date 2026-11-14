@@ -65,7 +65,7 @@ Suggested sequence:
 11. ~~Add variant administration (multiple variants, editing, deactivation, positions).~~ Complete: retrieval, creation, update, activation/deactivation, product-scoped positioning and Filament relation-manager administration (DEC-020, 2026-11-11).
 12. ~~Add normalized product attributes and options.~~ Complete: global definitions, owned options, product assignments, variant selections, derived variant keys and Filament administration (DEC-021, 2026-11-12). Descriptive values and non-`select` types remain future scope.
 13. ~~Implement product media and galleries.~~ Complete: Catalog-owned `product_media`, `MediaStorage` abstraction, product/variant galleries with gallery-scoped ordering and primary images, server-side validation, contract-backed Filament relation-manager administration and PostgreSQL enforcement (Task 006, DEC-022, 2026-11-13). Thumbnails, conversions, EXIF stripping and orphan-file pruning remain deferred.
-14. Add the Pricing module.
+14. ~~Assess the Pricing module.~~ Complete: architecture assessment prepared (Task 007, 2026-11-13; DEC-023 Proposed). Proposes a separate Pricing module depending on Core and Catalog, variant-level base prices per currency in integer minor units, an append-only price-change ledger, contract-backed admin-only Filament administration, and defers price lists, customer-specific/scheduled/promotional pricing, tax and FX. **Task 007A implemented** on `feature/pricing` branch: module scaffold, config `pricing.php`, migrations `z12`/`z13`, `VariantPrice`/`VariantPriceChange` models, `Support\Money` value object, factories, `VariantPricePolicy`, and Pest foundation tests. DEC-023 Proposed; **Task 007B implemented** on `feature/pricing` branch: contracts `FindsVariantPrices`/`SetsVariantPrice`/`RemovesVariantPrice`, actions `FindVariantPrices`/`SetVariantPrice`/`RemoveVariantPrice`, service provider bindings, Pest action tests, and transactional history ledger recording.
 
 Completion criteria:
 - Product persistence is tested.
@@ -78,7 +78,7 @@ Completion criteria:
 
 Candidate areas:
 - ~~Inventory.~~ Stock foundation implemented: variant/location stock records, validated adjustments and variant-keyed movement history.
-- Pricing.
+- Pricing — Task 007B implemented (actions/contracts: FindsVariantPrices, SetsVariantPrice, RemovesVariantPrice with validation, transactions, locking and ledger recording); DEC-023 remains Proposed; next: 007C Filament administration.
 - Cart and wishlist.
 - Checkout.
 - Orders.

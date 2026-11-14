@@ -683,6 +683,81 @@ Resolved questions:
 6. Production S3-compatible provider and public URL strategy remain a deployment
    follow-up.
 
+### DEC-023 — Pricing is a separate module with integer minor-unit money
+**Status:** Proposed
+**Date:** 2026-11-13
+**Branch:** `feature/pricing`
+
+Context:
+DEC-019 makes the product variant the only purchasable unit and states that
+pricing belongs to a future Pricing module, not to Catalog. Catalog, Inventory
+and product media are implemented and must remain price-free. No price, currency
+or monetary storage exists in the repository. The runtime has `intl`, `mbstring`
+and `fileinfo` but not `bcmath` or `gmp`, so arbitrary-precision decimal
+arithmetic is unavailable.
+
+Decision (proposed):
+- Pricing is a dedicated module under `src/app/Modules/Pricing/` that depends on
+  Core and Catalog and references `product_variants.id`. Catalog must not depend
+  on Pricing and must not gain price columns or price relationships.
+- The MVP stores one current base price per `(variant_id, currency)` in
+  `variant_prices`, with an optional compare-at amount in the same currency.
+- Money is stored as integer minor units in a `bigint` column plus an uppercase
+  ISO 4217 `char(3)` currency. No floats, doubles or decimal casts are used for
+  money. Currency exponents are configuration in `config/pricing.php`.
+- Major-unit input is parsed with string operations and excess precision is
+  rejected rather than rounded.
+- Every price creation, update and removal writes one immutable row to
+  `variant_price_changes` in the same transaction as the price mutation.
+- Price lists, customer/group pricing, scheduled and promotional pricing,
+  coupons, tax, FX conversion, price adjustments and a shared price resolver are
+  deferred until a consumer and the required customer/tax decisions exist.
+- Authorization is an admin-only `VariantPricePolicy`; no Catalog policy gains a
+  pricing ability. Writes are contract-backed; Filament never writes models
+  directly.
+- Administration is a standalone `VariantPriceResource` discovered from
+  `app/Modules/Pricing/Filament/Resources`, not a Catalog product-page tab.
+
+Options considered:
+- Price columns on `products` or `product_variants`: rejected; violates DEC-019
+  and Catalog ownership, and makes multi-currency and history awkward.
+- Prices inside Inventory or a future Cart module: rejected; those modules own
+  stock and basket state, not money.
+- `decimal(10,2)` columns: rejected; decimal casts become strings/floats in PHP
+  and invite rounding errors, and `bcmath`/`gmp` are unavailable.
+- A single `price` column with one store currency: rejected for the MVP because
+  explicit per-currency rows are simpler to reason about and extend than a later
+  multi-currency migration.
+- Adding `starts_at`/`ends_at` now: rejected; nullable windows imply a resolver
+  and overlap rules that the MVP does not implement.
+
+Consequences and migration implications:
+- New additive migrations `z12_create_variant_prices_table.php` and
+  `z13_create_variant_price_changes_table.php`, sorted after Catalog `z11`.
+- No existing table is altered and no data backfill is required.
+- Catalog, Inventory, product media and variant-keyed stock are unaffected.
+- `config/pricing.php`, `module.json` and a new `PricingServiceProvider` are
+  required, plus resource discovery in `AdminPanelProvider`.
+- The test suite runs on SQLite; PostgreSQL `CHECK` constraints are
+  driver-guarded and verified separately on a throwaway PostgreSQL database.
+- No Composer dependency is added.
+- Once Orders exist, order lines must snapshot amount and currency rather than
+  joining live price rows.
+- Not implemented. The full assessment and task breakdown are in
+  `docs/agent/tasks/active/007-pricing-module.md`; the proposed module
+  specification is `docs/agent/modules/PRICING.md`.
+
+Open questions recorded in the task document:
+1. Default storefront currency and whether multi-currency is required at launch.
+2. Whether compare-at is in the MVP and must be greater than or equal to the
+   selling price.
+3. Whether prices may be removed (audited) or only zeroed.
+4. Tax-inclusive vs tax-exclusive storage.
+5. Whether several currencies per variant are allowed in the MVP.
+6. Whether a read-only ledger UI is required for MVP.
+7. Actor capture for CLI/seed changes.
+8. Future non-admin price visibility.
+
 ## Decision protocol
 
 For each new decision, record:

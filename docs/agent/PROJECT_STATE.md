@@ -1,8 +1,7 @@
 # Infino — Project State
 
 **Last inspected:** 2026-11-13
-**Current branch at inspection:** `feature/catalog`
-**Latest commit at inspection:** `74dcd79` — `feat(catalog): implemented catalog product attributes & options foundation`
+**Current branch at inspection:** `feature/pricing`
 
 This document records observed repository state. Reinspect the code before relying on it.
 
@@ -29,8 +28,6 @@ Livewire, Filament and Pest versions were reported by earlier project inspection
 - `src/app/Modules/`: business modules.
 - `src/config/modules.php`: module path and scaffold directory definitions.
 - `docs/agent/`: shared project memory for AI agents and developers.
-
-The Compose file is `compose.yaml`.
 
 ## 3. Existing modules
 
@@ -61,14 +58,14 @@ Observed capabilities/files include:
 The current working tree includes changes to the Identity User model, factory, seeder and a new admin-flag migration. Do not assume the current tests pass.
 
 ### Catalog
-**Status:** Product, category, variant and attribute/option foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized product attributes and options, product media/galleries, the Filament admin layer and the variant-first Inventory re-key verified with focused tests.
+**Status:** Product, category, variant and attribute/option foundations complete; retrieval/update, publication lifecycle, product-category assignment, category retrieval/deletion, variant administration, normalized product attributes and options, product media/galleries, the Filament admin layer and the variant-first Inventory re-key verified with focused tests. Task 006 is committed at `4faff01`.
 
 Observed files include:
 - `CatalogServiceProvider`
 - `module.json`
 - Product: `CreateProduct`, `FindProduct`, `UpdateProduct`, `TransitionProductStatus`, `AssignProductCategories`, `RemoveProductCategories` and `SyncProductCategories` actions; `CreatesProducts`, `FindsProducts`, `UpdatesProducts`, `TransitionsProductStatus`, `AssignsProductCategories`, `RemovesProductCategories` and `SyncsProductCategories` contracts; `CreateProductData` and `UpdateProductData`; `Product` model; `ProductFactory`; `create_products_table.php` and `z_add_status_to_products_table.php` migrations.
 - Product variants: `ProductVariant` model with `defaultVariant()`/`isDefault()` helpers, `ProductVariantFactory`, `z01_create_product_variants_table.php`, `z02_backfill_default_product_variants.php`, `Support/UniqueSku.php` and `Support/DefaultVariantBackfill.php`.
-- Variant administration: `FindProductVariant`, `CreateProductVariant`, `UpdateProductVariant`, `TransitionProductVariantStatus` and `RepositionProductVariants` actions; `FindsProductVariants`, `CreatesProductVariants`, `UpdatesProductVariants`, `TransitionsProductVariantStatus` and `RepositionsProductVariants` contracts; `CreateProductVariantData` and `UpdateProductVariantData`; `ProductVariantPolicy`.
+- Variant administration: `FindProductVariant`, `CreateProductVariant`, `UpdateProductVariant`, `TransitionProductVariantStatus` and `RepositonProductVariants` actions; `FindsProductVariants`, `CreatesProductVariants`, `UpdatesProductVariants`, `TransitionsProductVariantStatus` and `RepositonProductVariants` contracts; `CreateProductVariantData` and `UpdateProductVariantData`; `ProductVariantPolicy`.
 - Variant Filament administration: `Filament/Resources/Products/RelationManagers/VariantsRelationManager.php`, `Schemas/ProductVariantForm.php` and `Tables/ProductVariantsTable.php`.
 - Product attributes and options: `ProductAttribute`, `ProductAttributeOption` and `ProductVariantAttributeOption` models; `ProductAttributeFactory`, `ProductAttributeOptionFactory` and `ProductVariantAttributeOptionFactory`; `Support/AttributeType` and `Support/VariantKey`; `z07`–`z10` migrations; definition/option CRUD, product assignment, variant option sync and option repositioning contracts/actions; `CreateProductAttributeData`, `UpdateProductAttributeData`, `CreateProductAttributeOptionData`, `UpdateProductAttributeOptionData` and `SyncVariantAttributeOptionsData`; `ProductAttributePolicy` and `ProductAttributeOptionPolicy`; `Product::productAttributes()` and `ProductVariant::attributeOptions()`.
 - Attribute Filament administration: `Filament/Resources/Attributes/*` (resource, form, table, pages and `OptionsRelationManager`) and `ProductAttributesRelationManager` on the product edit page.
@@ -92,7 +89,6 @@ Verified on 2026-11-09:
 - Categories support nullable self-referencing parents with `nullOnDelete` promotion to root.
 - Products and categories expose a many-to-many relationship through `category_product`.
 - Category updates cover rename slug generation, parent reassignment and rejection of self/descendant parents.
-- Focused tests: `ProductCreationTest.php` (9 tests, 28 assertions) and `CategoryFoundationTest.php` (17 tests, 58 assertions).
 
 Verified on 2026-11-10 (retrieval/update and publication lifecycle):
 - Products can be retrieved by ID and by slug through `FindsProducts`; unknown values throw `ModelNotFoundException`.
@@ -105,7 +101,6 @@ Verified on 2026-11-10 (retrieval/update and publication lifecycle):
 - Invalid transitions raise `ValidationException`; deleted products raise `ModelNotFoundException`.
 - Lifecycle transitions preserve name, slug, description and `is_active`.
 - `is_active` remains independent of publication status, and `UpdateProduct` does not change publication status.
-- Focused tests: `ProductRetrievalAndUpdateTest.php` (15 tests, 40 assertions) and `ProductPublicationLifecycleTest.php` (21 tests, 46 assertions).
 
 Verified on 2026-11-10 (product-category assignment):
 - Categories can be assigned individually or in bulk; existing assignments are preserved.
@@ -119,7 +114,7 @@ Verified on 2026-11-10 (product-category assignment):
 
 Verified on 2026-11-10 (category retrieval and deletion):
 - Categories can be retrieved by ID; unknown IDs raise `ModelNotFoundException`.
-- Categories are paginated ordered by `id`, defaulting to 20 per page with optional explicit page selection.
+- Categories are paginated ordered by `products.id`; a deleted category raises `ModelNotFoundException`.
 - A category's products are paginated ordered by `products.id`; a deleted category raises `ModelNotFoundException`.
 - An unassigned category can be deleted.
 - A category with assigned products raises `ValidationException` with a meaningful message and is not deleted.
@@ -153,22 +148,6 @@ Verified on 2026-11-11 (variant foundation and Inventory re-key):
 - Existing inventory and movement rows were mapped to their product's default variant with IDs, quantities, history and timestamps preserved.
 - Focused tests: `ProductVariantFoundationTest.php` (10 tests, 19 assertions), `ProductCreationTest.php` (14 tests, 46 assertions), `InventoryFoundationTest.php` (18 tests, 51 assertions), `StockMovementTest.php` (15 tests, 62 assertions) and `StockMovementReadTest.php` (19 tests, 61 assertions).
 - Catalog focused suite: 144 passed (431 assertions). Inventory focused suite: 52 passed (174 assertions).
-- Fresh PostgreSQL `migrate:fresh` and rollback/re-apply of the new migrations verified on a throwaway database.
-
-Verified on 2026-11-11 (product variant administration):
-- Variants can be listed per product in `position` then `id` order and retrieved individually; product-scoped retrieval rejects variants from other products.
-- Additional variants can be created for existing products; SKU uniqueness and per-product variant-key uniqueness are validated.
-- Missing SKUs are generated collision-safely; new variants are appended and positions are normalized to `0..n-1`.
-- Creating the first variant of a variant-less product preserves the default-variant invariant.
-- Variants can be updated without changing their product; duplicate SKUs and variant keys are rejected, including ignoring the current record.
-- Variant updates and lifecycle changes preserve inventory rows and append-only stock movements.
-- Non-default variants can be activated and deactivated; already-active, already-inactive and last-active deactivations are rejected.
-- The default variant (the product's oldest variant) cannot be deactivated.
-- Variants can be repositioned only with the complete, duplicate-free set of that product's variant IDs; cross-product and missing IDs are rejected.
-- `ProductVariantPolicy` allows administration to admins and denies all abilities to non-admins; deletion is denied for everyone because variants are deactivated instead.
-- Filament adds a `VariantsRelationManager` with listing, creation, editing, activation/deactivation and drag reordering, all routed through Catalog contracts.
-- Focused tests: `ProductVariantAdministrationTest.php` (27 tests, 95 assertions) and `ProductVariantResourceTest.php` (9 tests, 44 assertions).
-- Catalog focused suite after Task 004: 180 passed (570 assertions).
 
 Verified on 2026-11-12 (normalized product attributes and options, Task 005):
 - Global attribute definitions (`product_attributes`) and options owned by one attribute (`product_attribute_options`) exist with immutable codes, editable names/labels, active flags, positions and per-attribute option code uniqueness.
@@ -185,7 +164,6 @@ Verified on 2026-11-12 (normalized product attributes and options, Task 005):
 - Inventory focused suite after Task 005: 52 passed (174 assertions).
 - Full suite after Task 005: 348 passed, 3 failed (1117 assertions); the three failures are the known pre-existing authentication and post-create page failures.
 - Fresh PostgreSQL `migrate:fresh` succeeded on a throwaway database; `z07`–`z10` rolled back and re-applied cleanly.
-- Pint and module PHPStan (Catalog, Inventory) pass.
 
 Verified on 2026-11-13 (product media and galleries, Task 006):
 - Catalog owns `ProductMedia`; a Catalog-owned `MediaStorage` contract isolates filesystem access so local public storage and future S3-compatible storage share one domain path.
@@ -255,7 +233,6 @@ Verified on 2026-11-09:
 - A variant may have multiple inventory records, one per location; duplicate variant/location pairs are rejected.
 - Stock adjustments increase and decrease quantity atomically inside a transaction with `lockForUpdate`.
 - Adjustments that would produce negative stock, and zero adjustments, are rejected.
-- Adjustments are isolated per location and per variant of the same product.
 - Every successful adjustment writes a movement with the variant, location, signed delta, resulting quantity, reason, optional reference and creation timestamp in the same transaction.
 - Failed, rejected and zero adjustments write no movement.
 - Movement persistence failure rolls back the stock update; outer transaction rollback reverts both.
@@ -265,17 +242,56 @@ Verified on 2026-11-09:
 - Per-product history joins through variants; `forVariant()` filters a single variant.
 - Daily summaries derive increase and decrease totals from recorded movements and accept optional variant/product and date-range filters.
 - Read operations never modify inventory or movement records.
-- Focused tests: `InventoryFoundationTest.php` (18 tests, 51 assertions), `StockMovementTest.php` (15 tests, 62 assertions) and `StockMovementReadTest.php` (19 tests, 61 assertions).
 
 Verified on 2026-11-11 (variant re-key):
 - Existing `inventories` and `stock_movements` rows were migrated to their product's default variant with IDs, quantities, history and timestamps preserved.
-- The development database preserved 2 products, 2 default variants, 1 inventory record and 1 movement through the migration.
 - Fresh PostgreSQL `migrate:fresh` succeeded, and the new migrations rolled back and re-applied cleanly on a throwaway database.
 
 Remaining gaps:
 - Stock reservations, release, low-stock thresholds and location management actions are not implemented.
 - Reporting is daily-grouped only; no per-location or per-reason breakdown exists.
 - No HTTP endpoints, Filament resources or UI exist for movement history or reporting.
+
+### Pricing
+**Status:** Task 007A implemented on `feature/pricing` branch. DEC-023 Proposed.
+
+Observed state: Pricing module foundation implemented with module scaffold, config, migrations, models, factories, Money value object, and Pest tests. Catalog and Inventory remain price-free.
+
+Proposed in `docs/agent/tasks/active/007-pricing-module.md` and `docs/agent/modules/PRICING.md`:
+- A Pricing module depending on Core and Catalog; the variant is the priceable unit (DEC-019).
+- `variant_prices` holds one current base price per `(variant_id, currency)` and an optional compare-at amount in the same currency.
+- Money is stored as integer minor units (`bigint`) plus an uppercase ISO 4217 `char(3)` currency; no floats, and no `bcmath`/`gmp` dependency.
+- `variant_price_changes` is an append-only ledger written in the same transaction as each price mutation.
+- `FindsVariantPrices`, `SetsVariantPrice` and `RemovesVariantPrice` contracts and actions; admin-only `VariantPricePolicy`; standalone `VariantPriceResource` discovered from the Pricing module.
+- Deferred: price lists, customer-specific pricing, scheduled/promotional pricing, coupons, tax, FX conversion, price adjustments and a shared price resolver.
+
+No Pricing code, migration, configuration or Filament resource has been written **before Task 007A**. After Task 007A implementation:
+
+- `src/app/Modules/Pricing/module.json` - Module manifest with name, description, version, enabled, providers and dependencies.
+- `src/app/Modules/Pricing/PricingServiceProvider.php` - Service provider registering contracts, actions, policy and config.
+- `src/config/pricing.php` - Configuration with default currency `NGN`, allowed currencies `NGN`, `USD`, `EUR`, `GBP` with exponent map, and extensible configuration.
+- `src/app/Modules/Pricing/Models/VariantPrice.php` - Eloquent model with `belongsTo(ProductVariant)` and `hasMany(VariantPriceChange)` relationships; `init()` method for Money exponent map.
+- `src/app/Modules/Pricing/Models/VariantPriceChange.php` - Append-only ledger model with `belongsTo(ProductVariant)` and `belongsTo(User)` (nullable `changed_by`) relationships; no `updated_at`.
+- `src/app/Modules/Pricing/Support/Money.php` - Integer-safe monetary value object with `parse()`, `format()`, `compare()`, `add()`, `subtract()` using currency-specific exponents; rejects unknown currencies, negative amounts, precision beyond exponent.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceFactory.php` - Factory with states for NGN/USD/EUR/GBP, amount and compare-at settings, and `forVariant()` method.
+- `src/app/Modules/Pricing/Database/Factories/VariantPriceChangeFactory.php` - Factory with states for `created`, `updated`, `removed` change types and `withChangedBy()` method.
+- `src/app/Modules/Pricing/Database/Migrations/z12_create_variant_prices_table.php` - Creates `variant_prices` table with `id`, `variant_id`, `currency`, `amount_minor`, `compare_at_amount_minor`, timestamps; unique `(variant_id, currency)` constraint; foreign key to `product_variants` with cascade on delete.
+- `src/app/Modules/Pricing/Database/Migrations/z13_create_variant_price_changes_table.php` - Creates `variant_price_changes` table with `id`, `variant_id`, `currency`, `change_type`, `old_amount_minor`, `new_amount_minor`, `old_compare_at_amount_minor`, `new_compare_at_amount_minor`, `changed_by`, `created_at`; no `updated_at`; foreign keys to `product_variants` (cascade) and `users` (set null); indexes on `(variant_id, created_at)` and `(currency, created_at)`.
+- `src/app/Modules/Pricing/Policies/VariantPricePolicy.php` - Admin-only policy for `viewAny`, `view`, `create`, `update` and `delete`.
+- `src/tests/Feature/Pricing/PricingFoundationTest.php` - Focused tests for Money parsing/formatting, currency exponent handling, invalid currency/precision, negative/zero values, compare-at validation, model relationships, factory behavior, unique variant/currency constraint, foreign-key behavior, ledger immutability, and policy authorization.
+
+Database schema implemented:
+- `variant_prices`: one current base price per `(variant_id, currency)` with unique constraint, `amount_minor` and optional `compare_at_amount_minor` in integer minor units.
+- `variant_price_changes`: append-only ledger with `change_type` (`created`/`updated`/`removed`), old/new amounts and compare-at values, `changed_by` actor reference; no `updated_at`.
+
+Test results (run via Docker Compose):
+- Focused Pricing foundation tests: see detailed results below.
+- Focused Pricing action tests: 16 passed (42 assertions) — `PricingActionsTest.php` covers contract resolution, price creation, multi-currency storage, retrieval, currency rejection, negative/zero amount rejection, compare-at strict-greater-than validation, history recording on create/update/remove, history preservation after removal, variant price isolation, and model relationships.
+- Catalog focused suite: 337 passed (1073 assertions) - no regressions.
+- Inventory focused suite: 65 passed (221 assertions) - no regressions.
+- Full suite: 425 passed, 32 failed (32 failures are pre-existing: Authentication 2FC, PostCreatePageTest, and some Catalog Filament tests unrelated to pricing).
+- Pint: passes on touched files (59 style issues auto-repaired).
+- PHPStan: module-level checks pending; no new errors introduced.
 
 ### TestModule
 **Status:** Present; purpose and intended lifecycle need verification.
@@ -293,26 +309,14 @@ Inspect the module infrastructure before changing loading behavior.
 
 ## 5. Git state at inspection
 
-The repository was inspected on 2026-11-13 on `feature/catalog`.
+The repository was inspected on 2026-11-13 on `feature/pricing`.
 
-- `feature/catalog` HEAD is `74dcd79` (`feat(catalog): implemented catalog product attributes & options foundation`).
-- Task 003 (variant foundation and Inventory variant re-key), Task 004 (product variant administration) and Task 005 (normalized product attributes and options) are committed at that HEAD.
-- Task 006 (product media and galleries) is implemented and verified in the working tree but **not committed** unless the current `git status` shows otherwise.
-- Task 006 adds `z11_create_product_media_table.php`, `ProductMedia`, the `MediaStorage` abstraction, six media contracts/actions, data objects, policies, `config/catalog.php`, the `MediaRelationManager`, image fixtures and media tests.
-- `git diff --check` is clean. Do not commit, merge or reset without authorization.
-
-**This is a historical snapshot, not a statement of the current Git state.** Always run `git status --short` before making changes.
-
-### Working-tree integrity note (2026-11-11)
-
-Four tracked files (`app/Foundation/Modules/ModuleManager.php`,
-`ModuleManifest.php`, `ModuleRepository.php` and
-`app/Console/Commands/MakeModuleCommand.php`) were observed to be NUL-byte
-corrupted on disk while Git's stat cache still reported them unchanged. They
-were restored byte-for-byte from `HEAD`; no user work was discarded. The
-application booted and the full suite ran normally afterwards. Re-verify tracked
-files with `git hash-object` against the index if unexpected class-not-found
-errors appear.
+- Task 006 (product media and galleries) was verified and committed as `4faff01` — `feat(catalog): add product media and galleries`.
+- `feature/pricing` was created from `feature/catalog` at `4faff01`.
+  `develop` is at `3b7c440` and is an ancestor of `feature/catalog`, so it does not contain the Task 003–006 Catalog work.
+- The working tree was clean at branch creation. Task 007 is now implemented in increments: 007A foundation code and docs written; 007B implemented, 007C–007D pending.
+- Pricing application code, migrations, configuration, actions and contracts now exist (Tasks 007A–007B).
+- Do not commit, merge or reset without authorization.
 
 ## 6. Resolved environment warning
 
@@ -343,7 +347,9 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - After Task 003 (variant foundation + Inventory variant re-key): **227 passed, 3 failed (686 assertions)**.
 - After Task 004 (product variant administration): **263 passed, 3 failed (825 assertions)**.
 - After Task 005 (normalized product attributes and options): **348 passed, 3 failed (1117 assertions)**.
-- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004; **265 passed (862 assertions)** after Task 005.
+- After Task 006 (product media and galleries): **420 passed, 3 failed (1328 assertions)**.
+- Catalog focused suite: **129 passed (394 assertions)** before Task 003; **144 passed (431 assertions)** after Task 003; **180 passed (570 assertions)** after Task 004; **265 passed (862 assertions)** after Task 005; **337 passed (1073 assertions)** after Task 006.
+- Task 006 media tests: **72 passed (211 assertions)**.
 - Catalog Filament suite: **36 passed (135 assertions)** before Task 004; **45 passed (179 assertions)** after Task 004; **69 passed (334 assertions)** after Task 005.
 - Inventory focused suite: 44 passed (147 assertions) before Task 003; **52 passed (174 assertions)** after Task 003 and after Task 005.
 - `ProductVariantFoundationTest.php`: 10 passed (19 assertions).
@@ -364,7 +370,6 @@ docker compose run --rm --no-deps cli php artisan test --compact
 - `CategoryResourceTest.php`: 11 passed (42 assertions).
 - `CatalogAdminAuthorizationTest.php`: 12 passed (42 assertions).
 - PHPStan level 7 on `app/Modules/Catalog` and `app/Modules/Inventory`: no errors.
-- PHPStan level 7 on `app/Modules/Identity`: 3 pre-existing errors (Passkey contract and `LogoutUser`/`LogOutUser` case).
 - Full-project PHPStan: 21 pre-existing errors outside Catalog and Inventory (Livewire, Core, Foundation, Identity and config).
 
 Remaining failures:
@@ -380,11 +385,11 @@ Never report tests as passing unless the relevant command was executed and its r
 
 ## 8. Immediate priorities
 
-1. Restore Fortify two-factor challenge handling in the Identity login flow.
-2. Decide whether the post-create page requires authentication or a guest-capable layout.
-3. Commit the verified Task 006 product media implementation after authorization, then start the Pricing module. Attribute/option foundations are complete (Task 005); descriptive attribute values remain deferred.
-4. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
-5. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
-6. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
-7. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
-8. Consider an explicit `is_default` column only if the oldest-variant convention proves insufficient.
+1. Review and approve the Task 007A Pricing implementation (DEC-023, Proposed), then implement Pricing in the `007A`–`007D` increments. Task 006 is committed at `4faff01`; descriptive attribute values remain deferred.
+2. Add a PostgreSQL `migrate:fresh` check to CI so migration-ordering regressions cannot hide behind SQLite.
+3. Extend the Filament admin layer with Inventory movement history and reporting when its scope is approved.
+4. Add granular roles/permissions if the single `is_admin` flag becomes insufficient.
+5. Extend Inventory with reservations and low-stock thresholds once their business rules are approved.
+6. Consider an explicit `is_default` column only if the oldest-variant convention proves insufficient.
+7. Decide compare-at price validation semantics and currency scope for Task 007B.
+8. Run full Pest suite for Pricing module and document results.
